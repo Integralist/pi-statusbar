@@ -18,6 +18,12 @@ const defaultGitExecutor: GitExecutor = (file, args, options) => {
   return execFileSync(file, args, options);
 };
 
+let customGitExecutor: GitExecutor | null = null;
+
+export function setGitExecutor(executor: GitExecutor | null): void {
+  customGitExecutor = executor;
+}
+
 const branchCache = new Map<string, BranchCacheEntry>();
 export const BRANCH_CACHE_TTL_MS = 2000;
 
@@ -27,7 +33,7 @@ export function clearGitBranchCache(): void {
 
 export function getGitBranch(
   cwd: string,
-  executor: GitExecutor = defaultGitExecutor
+  executor: GitExecutor = customGitExecutor ?? defaultGitExecutor
 ): string | null {
   const now = Date.now();
   const cached = branchCache.get(cwd);

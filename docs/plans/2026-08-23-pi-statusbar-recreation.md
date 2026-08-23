@@ -169,7 +169,7 @@ Acceptance criteria and scope:
 - **Consumes**: Formatters and `getGitBranch` from Slice 1.
 - **Produces**: `default export function initStatusBar(api: ExtensionAPI): void`
 
-- [ ] **Task 2.1**: Implement streaming telemetry collector tracking turn start
+- [x] **Task 2.1**: Implement streaming telemetry collector tracking turn start
   timestamp, first token timestamp (for TTFT), token delta counts, and live TPS.
 
   ```typescript
@@ -183,10 +183,10 @@ Acceptance criteria and scope:
   }
   ```
 
-- [ ] **Task 2.2**: Implement session cost calculator walking branch entries
+- [x] **Task 2.2**: Implement session cost calculator walking branch entries
   (`ctx.sessionManager.getBranch()`) to sum `usage.cost.total`.
 
-- [ ] **Task 2.3**: Implement dynamic layout width budgeting: compute width of
+- [x] **Task 2.3**: Implement dynamic layout width budgeting: compute width of
   fixed segments (`model`, `context`, `tokens`, `cost`) and middle dots,
   allocating all remaining columns to `directory` (formatted with branch).
 
@@ -201,7 +201,7 @@ Acceptance criteria and scope:
   )}\x1b[0m`;
   ```
 
-- [ ] **Task 2.4**: Implement session transition keep-alive and sticky footer
+- [x] **Task 2.4**: Implement session transition keep-alive and sticky footer
   patching to prevent visual flicker during session reload or creation.
 
 ### Slice 3: Segment Configurator, Interactive `/statusbar` Command & Settings
