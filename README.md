@@ -56,6 +56,7 @@ Configure statusbar segments directly from within Pi:
 ```bash
 make test    # Run test suite with Vitest
 make lint    # Typecheck TypeScript sources with tsc --noEmit
+make try     # Test extension in a live Pi session
 make install # Install npm dependencies
 ```
 

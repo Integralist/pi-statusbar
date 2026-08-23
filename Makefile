@@ -1,4 +1,4 @@
-.PHONY: all test lint install build
+.PHONY: all test lint install build try
 
 all: test lint
 
@@ -13,3 +13,6 @@ test:
 
 lint:
 	npm run lint
+
+try:
+	pi -e ./extensions/pi-statusbar.ts
