@@ -1,6 +1,6 @@
 # Pi Statusbar Extension Recreation & Non-Main Branch Display
 
-- **Status**: Planning
+- **Status**: Complete
 - **Author**: Integralist
 - **Created**: 2026-08-23
 - **Language**: TypeScript
@@ -214,7 +214,7 @@ Acceptance criteria and scope:
 - **Produces**: Fully functional `/statusbar` command handler and configuration
   loader.
 
-- [ ] **Task 3.1**: Implement config loader/saver reading `PI_STATUSBAR_SHOW`,
+- [x] **Task 3.1**: Implement config loader/saver reading `PI_STATUSBAR_SHOW`,
   `PI_STATUSBAR_CONFIG`, and persisting chosen segments to disk.
 
   ```typescript
@@ -236,31 +236,31 @@ Acceptance criteria and scope:
   }
   ```
 
-- [ ] **Task 3.2**: Implement `/statusbar` CLI subcommand parser supporting
+- [x] **Task 3.2**: Implement `/statusbar` CLI subcommand parser supporting
   `segments list`, `segments all`, `segments none`, `segments only <...>`,
   `segments show <name>`, `segments hide <name>`.
 
-- [ ] **Task 3.3**: Implement interactive TUI segment selector dialog using
+- [x] **Task 3.3**: Implement interactive TUI segment selector dialog using
   `SettingsList` from `@earendil-works/pi-tui`.
 
 ### Documentation
 
-- [ ] Write `README.md` documenting installation via `pi install`, segment
+- [x] Write `README.md` documenting installation via `pi install`, segment
   descriptions, branch display behavior, `/statusbar` commands, and
   configuration variables.
-- [ ] Document Makefile targets (`make test`, `make build`, `make deploy`).
+- [x] Document Makefile targets (`make test`, `make build`, `make deploy`).
 
 ### Verification
 
-- [ ] Run `make test` verifying all unit tests pass with 100% coverage on
+- [x] Run `make test` verifying all unit tests pass with 100% coverage on
   branch formatting, truncation, and telemetry computations.
-- [ ] Test in live Pi session under `main` branch: confirm footer shows
+- [x] Test in live Pi session under `main` branch: confirm footer shows
   `~/path` without branch.
-- [ ] Test in live Pi session under non-main branch (e.g. `feat/test`): confirm
+- [x] Test in live Pi session under non-main branch (e.g. `feat/test`): confirm
   footer shows `~/path (feat/test)`.
-- [ ] Test narrowing terminal window: confirm middle-truncation applies cleanly
+- [x] Test narrowing terminal window: confirm middle-truncation applies cleanly
   to `~/path (feat/test)`.
-- [ ] Run `/statusbar segments hide model` and confirm model is hidden and
+- [x] Run `/statusbar segments hide model` and confirm model is hidden and
   setting persists.
 
 ## File Changes
