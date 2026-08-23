@@ -1,0 +1,26 @@
+{
+  "name": "pi-statusbar",
+  "version": "0.1.0",
+  "description": "Footer / statusline extension for pi with branch display.",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "test": "vitest run",
+    "lint": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "@earendil-works/pi-ai": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.0.0"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/pi-statusbar.ts"
+    ]
+  }
+}
