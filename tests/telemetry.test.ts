@@ -164,8 +164,8 @@ describe("ttftAnsiColor", () => {
     expect(ttftAnsiColor(0.5)).toBe("\x1b[38;2;80;220;80m"); // green (< 2s)
     expect(ttftAnsiColor(2.5)).toBe("\x1b[38;2;255;215;0m"); // yellow (2-3s)
     expect(ttftAnsiColor(3.5)).toBe("\x1b[38;2;255;165;0m"); // orange (3-4s)
-    expect(ttftAnsiColor(4.5)).toBe("\x1b[38;2;255;80;80m"); // red (4-5s)
-    expect(ttftAnsiColor(5.5)).toBe("\x1b[38;2;200;100;255m"); // purple (>= 5s)
+    expect(ttftAnsiColor(4.5)).toBe("\x1b[38;2;255;110;180m"); // pink (4-5s)
+    expect(ttftAnsiColor(5.5)).toBe("\x1b[38;2;255;80;80m"); // red (>= 5s)
   });
 });
 
@@ -176,8 +176,8 @@ describe("tpsAnsiColor", () => {
   });
 
   it("returns threshold color when tokenCount > rate", () => {
-    expect(tpsAnsiColor(10, 100)).toBe("\x1b[38;2;200;100;255m"); // purple (< 15)
-    expect(tpsAnsiColor(25, 100)).toBe("\x1b[38;2;255;80;80m"); // red (< 30)
+    expect(tpsAnsiColor(10, 100)).toBe("\x1b[38;2;255;80;80m"); // red (< 15)
+    expect(tpsAnsiColor(25, 100)).toBe("\x1b[38;2;255;110;180m"); // pink (< 30)
     expect(tpsAnsiColor(40, 100)).toBe("\x1b[38;2;255;165;0m"); // orange (< 45)
     expect(tpsAnsiColor(55, 100)).toBe("\x1b[38;2;255;215;0m"); // yellow (< 60)
     expect(tpsAnsiColor(70, 100)).toBe("\x1b[38;2;80;180;255m"); // blue (< 75)

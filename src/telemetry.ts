@@ -59,8 +59,8 @@ export function hslToRgb(
 }
 
 export function ttftAnsiColor(seconds: number): string {
-  if (seconds >= 5) return "\x1b[38;2;200;100;255m"; // purple
-  if (seconds >= 4) return "\x1b[38;2;255;80;80m"; // red
+  if (seconds >= 5) return "\x1b[38;2;255;80;80m"; // red (worst)
+  if (seconds >= 4) return "\x1b[38;2;255;110;180m"; // pink
   if (seconds >= 3) return "\x1b[38;2;255;165;0m"; // orange
   if (seconds >= 2) return "\x1b[38;2;255;215;0m"; // yellow
   return "\x1b[38;2;80;220;80m"; // green
@@ -68,8 +68,8 @@ export function ttftAnsiColor(seconds: number): string {
 
 export function tpsAnsiColor(rate: number, tokenCount: number): string {
   if (tokenCount <= rate) return "\x1b[38;2;140;140;140m"; // dim grey
-  if (rate < 15) return "\x1b[38;2;200;100;255m"; // purple
-  if (rate < 30) return "\x1b[38;2;255;80;80m"; // red
+  if (rate < 15) return "\x1b[38;2;255;80;80m"; // red (worst)
+  if (rate < 30) return "\x1b[38;2;255;110;180m"; // pink
   if (rate < 45) return "\x1b[38;2;255;165;0m"; // orange
   if (rate < 60) return "\x1b[38;2;255;215;0m"; // yellow
   if (rate < 75) return "\x1b[38;2;80;180;255m"; // info blue
