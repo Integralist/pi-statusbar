@@ -517,7 +517,7 @@ export default function initStatusBar(pi: ExtensionAPI): void {
               const costGradientCeiling = 1.0;
               const costSegmentText = `${costAnsiColor(sessionCost, costGradientCeiling)}${formatCost(sessionCost)}\x1b[0m`;
 
-              const modelText = `\x1b[38;2;80;180;255m${modelName} ${effortLevel}\x1b[0m`;
+              const modelText = `${modelName} ${effortLevel}`;
 
               const separator = ` ${theme.fg("muted", SEGMENT_SEPARATOR)} `;
               const separatorWidth = 3; // " · "
@@ -553,12 +553,12 @@ export default function initStatusBar(pi: ExtensionAPI): void {
               );
 
               const branch = getGitBranch(ctx.cwd);
-              segmentTexts.directory = `\x1b[38;2;255;165;0m${formatCwd(
+              segmentTexts.directory = formatCwd(
                 ctx.cwd,
                 homedir(),
                 branch,
                 directoryMaxWidth
-              )}\x1b[0m`;
+              );
 
               const line = visibleSegments
                 .map((segment) => segmentTexts[segment])

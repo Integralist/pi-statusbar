@@ -152,23 +152,18 @@ describe("formatModelName", () => {
 });
 
 describe("contextAnsiColor", () => {
-  it("returns empty string for <= 75%", () => {
-    expect(contextAnsiColor(50)).toBe("");
-    expect(contextAnsiColor(75)).toBe("");
+  it("returns green for <= 40%", () => {
+    expect(contextAnsiColor(20)).toBe("\x1b[38;2;80;220;80m");
+    expect(contextAnsiColor(40)).toBe("\x1b[38;2;80;220;80m");
   });
 
-  it("returns yellow for 75% < percent <= 85%", () => {
-    expect(contextAnsiColor(76)).toBe("\x1b[38;2;255;215;0m");
-    expect(contextAnsiColor(85)).toBe("\x1b[38;2;255;215;0m");
+  it("returns orange for 40% < percent <= 60%", () => {
+    expect(contextAnsiColor(41)).toBe("\x1b[38;2;255;165;0m");
+    expect(contextAnsiColor(60)).toBe("\x1b[38;2;255;165;0m");
   });
 
-  it("returns orange for 85% < percent <= 95%", () => {
-    expect(contextAnsiColor(86)).toBe("\x1b[38;2;255;165;0m");
-    expect(contextAnsiColor(95)).toBe("\x1b[38;2;255;165;0m");
-  });
-
-  it("returns red for > 95%", () => {
-    expect(contextAnsiColor(96)).toBe("\x1b[38;2;255;80;80m");
+  it("returns red for > 60%", () => {
+    expect(contextAnsiColor(61)).toBe("\x1b[38;2;255;80;80m");
     expect(contextAnsiColor(100)).toBe("\x1b[38;2;255;80;80m");
   });
 });

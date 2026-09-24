@@ -52,10 +52,9 @@ export function formatModelName(id: string | undefined): string {
 }
 
 export function contextAnsiColor(percent: number): string {
-  if (percent > 95) return "\x1b[38;2;255;80;80m"; // red
-  if (percent > 85) return "\x1b[38;2;255;165;0m"; // orange
-  if (percent > 75) return "\x1b[38;2;255;215;0m"; // yellow
-  return "";
+  if (percent > 60) return "\x1b[38;2;255;80;80m"; // red
+  if (percent > 40) return "\x1b[38;2;255;165;0m"; // orange
+  return "\x1b[38;2;80;220;80m"; // green
 }
 
 export function costAnsiColor(cost: number, _ceiling = 0): string {
