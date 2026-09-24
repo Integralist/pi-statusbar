@@ -1,7 +1,6 @@
 export function formatCost(usd: number): string {
-  if (!Number.isFinite(usd) || usd < 0) return "$0";
-  if (usd === 0) return "$0";
-  if (usd >= 1) return `$${usd.toFixed(2)}`;
+  if (!Number.isFinite(usd) || usd <= 0) return "$0";
+  if (usd >= 0.01) return `$${usd.toFixed(2)}`;
   if (usd >= 0.0001) return `$${usd.toFixed(4)}`;
   return `$${usd.toFixed(5)}`;
 }
@@ -59,8 +58,11 @@ export function contextAnsiColor(percent: number): string {
   return "";
 }
 
-export function costAnsiColor(_cost: number, _ceiling = 0): string {
-  return "\x1b[38;2;255;80;80m";
+export function costAnsiColor(cost: number, _ceiling = 0): string {
+  if (cost >= 1.0) return "\x1b[38;2;255;80;80m"; // red (>= $1.00)
+  if (cost >= 0.01) return "\x1b[38;2;255;165;0m"; // orange (cents)
+  if (cost > 0.001) return "\x1b[38;2;255;215;0m"; // yellow (0.1¢ – 1¢)
+  return "\x1b[38;2;80;220;80m"; // green (<= 0.1¢)
 }
 
 export function stripAnsi(s: string): string {

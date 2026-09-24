@@ -17,14 +17,16 @@ describe("formatCost", () => {
     expect(formatCost(Number.NaN)).toBe("$0");
   });
 
-  it("formats costs >= $1 with 2 decimals", () => {
+  it("formats costs >= $0.01 with 2 decimals", () => {
     expect(formatCost(1)).toBe("$1.00");
     expect(formatCost(1.2345)).toBe("$1.23");
     expect(formatCost(12.5)).toBe("$12.50");
+    expect(formatCost(0.3626)).toBe("$0.36");
+    expect(formatCost(0.1061)).toBe("$0.11");
+    expect(formatCost(0.01)).toBe("$0.01");
   });
 
-  it("formats costs between $0.0001 and $1 with 4 decimals", () => {
-    expect(formatCost(0.1061)).toBe("$0.1061");
+  it("formats sub-cent costs between $0.0001 and $0.01 with 4 decimals", () => {
     expect(formatCost(0.001)).toBe("$0.0010");
     expect(formatCost(0.0001)).toBe("$0.0001");
   });
@@ -172,8 +174,15 @@ describe("contextAnsiColor", () => {
 });
 
 describe("costAnsiColor", () => {
-  it("returns red ANSI color code", () => {
-    expect(costAnsiColor(0.5)).toBe("\x1b[38;2;255;80;80m");
+  it("returns appropriate color thresholds for cost", () => {
+    expect(costAnsiColor(1.0)).toBe("\x1b[38;2;255;80;80m"); // red (>= $1.00)
+    expect(costAnsiColor(2.5)).toBe("\x1b[38;2;255;80;80m"); // red
+    expect(costAnsiColor(0.5)).toBe("\x1b[38;2;255;165;0m"); // orange (cents)
+    expect(costAnsiColor(0.01)).toBe("\x1b[38;2;255;165;0m"); // orange
+    expect(costAnsiColor(0.005)).toBe("\x1b[38;2;255;215;0m"); // yellow (0.1¢ - 1¢)
+    expect(costAnsiColor(0.001)).toBe("\x1b[38;2;80;220;80m"); // green (<= 0.1¢)
+    expect(costAnsiColor(0.0005)).toBe("\x1b[38;2;80;220;80m"); // green
+    expect(costAnsiColor(0)).toBe("\x1b[38;2;80;220;80m"); // green
   });
 });
 

@@ -95,7 +95,7 @@ describe("pi-statusbar footer extension", () => {
     expect(cleanLine).toContain("claude-3-7-sonnet high");
     expect(cleanLine).toContain("(feat/test)");
     expect(cleanLine).toContain("2.3% of 1.0M used");
-    expect(cleanLine).toContain("$0.1061");
+    expect(cleanLine).toContain("$0.11");
   });
 
   it("renders statusbar without branch on main branch", async () => {
@@ -114,7 +114,7 @@ describe("pi-statusbar footer extension", () => {
 
     expect(cleanLine).toContain("claude-3-7-sonnet high");
     expect(cleanLine).not.toContain("(main)");
-    expect(cleanLine).toContain("$0.1061");
+    expect(cleanLine).toContain("$0.11");
   });
 
   it("renders streaming rate and TTFT when token delta events occur", async () => {
