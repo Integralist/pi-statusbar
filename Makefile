@@ -15,4 +15,4 @@ lint:
 	npm run lint
 
 try:
-	pi -e ./extensions/pi-statusbar.ts
+	pi --no-extensions -e ./extensions/pi-statusbar.ts
