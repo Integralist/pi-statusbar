@@ -152,19 +152,21 @@ describe("formatModelName", () => {
 });
 
 describe("contextAnsiColor", () => {
-  it("returns green for <= 40%", () => {
-    expect(contextAnsiColor(20)).toBe("\x1b[38;2;80;220;80m");
-    expect(contextAnsiColor(40)).toBe("\x1b[38;2;80;220;80m");
-  });
-
-  it("returns orange for 40% < percent <= 60%", () => {
-    expect(contextAnsiColor(41)).toBe("\x1b[38;2;255;165;0m");
-    expect(contextAnsiColor(60)).toBe("\x1b[38;2;255;165;0m");
-  });
-
-  it("returns red for > 60%", () => {
-    expect(contextAnsiColor(61)).toBe("\x1b[38;2;255;80;80m");
-    expect(contextAnsiColor(100)).toBe("\x1b[38;2;255;80;80m");
+  it.each([
+    [0, "\x1b[38;2;80;220;80m"],
+    [4.7, "\x1b[38;2;80;220;80m"],
+    [19.9999, "\x1b[38;2;80;220;80m"],
+    [20, "\x1b[38;2;255;215;0m"],
+    [20.0001, "\x1b[38;2;255;215;0m"],
+    [39.9999, "\x1b[38;2;255;215;0m"],
+    [40, "\x1b[38;2;255;165;0m"],
+    [40.0001, "\x1b[38;2;255;165;0m"],
+    [49.9999, "\x1b[38;2;255;165;0m"],
+    [50, "\x1b[38;2;255;80;80m"],
+    [50.0001, "\x1b[38;2;255;80;80m"],
+    [100, "\x1b[38;2;255;80;80m"],
+  ])("returns the expected color for %s percent used", (percent, color) => {
+    expect(contextAnsiColor(percent)).toBe(color);
   });
 });
 

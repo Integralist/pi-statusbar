@@ -160,28 +160,44 @@ describe("TokenRateTracker", () => {
 });
 
 describe("ttftAnsiColor", () => {
-  it("returns appropriate color thresholds for TTFT", () => {
-    expect(ttftAnsiColor(0.5)).toBe("\x1b[38;2;80;220;80m"); // green (< 2s)
-    expect(ttftAnsiColor(2.5)).toBe("\x1b[38;2;255;215;0m"); // yellow (2-3s)
-    expect(ttftAnsiColor(3.5)).toBe("\x1b[38;2;255;165;0m"); // orange (3-4s)
-    expect(ttftAnsiColor(4.5)).toBe("\x1b[38;2;255;110;180m"); // pink (4-5s)
-    expect(ttftAnsiColor(5.5)).toBe("\x1b[38;2;255;80;80m"); // red (>= 5s)
+  it.each([
+    [0, "\x1b[38;2;80;220;80m"],
+    [0.5, "\x1b[38;2;80;220;80m"],
+    [1.9999, "\x1b[38;2;80;220;80m"],
+    [2, "\x1b[38;2;255;215;0m"],
+    [2.0001, "\x1b[38;2;255;215;0m"],
+    [2.9999, "\x1b[38;2;255;215;0m"],
+    [3, "\x1b[38;2;255;165;0m"],
+    [3.0001, "\x1b[38;2;255;165;0m"],
+    [4, "\x1b[38;2;255;165;0m"],
+    [4.9999, "\x1b[38;2;255;165;0m"],
+    [5, "\x1b[38;2;255;80;80m"],
+    [5.0001, "\x1b[38;2;255;80;80m"],
+    [100, "\x1b[38;2;255;80;80m"],
+  ])("returns the expected color for %s seconds TTFT", (seconds, color) => {
+    expect(ttftAnsiColor(seconds)).toBe(color);
   });
 });
 
 describe("tpsAnsiColor", () => {
-  it("returns dim grey when tokenCount <= rate", () => {
-    expect(tpsAnsiColor(50, 50)).toBe("\x1b[38;2;140;140;140m");
-    expect(tpsAnsiColor(50, 10)).toBe("\x1b[38;2;140;140;140m");
-  });
-
-  it("returns threshold color when tokenCount > rate", () => {
-    expect(tpsAnsiColor(10, 100)).toBe("\x1b[38;2;255;80;80m"); // red (< 15)
-    expect(tpsAnsiColor(25, 100)).toBe("\x1b[38;2;255;110;180m"); // pink (< 30)
-    expect(tpsAnsiColor(40, 100)).toBe("\x1b[38;2;255;165;0m"); // orange (< 45)
-    expect(tpsAnsiColor(55, 100)).toBe("\x1b[38;2;255;215;0m"); // yellow (< 60)
-    expect(tpsAnsiColor(70, 100)).toBe("\x1b[38;2;80;180;255m"); // blue (< 75)
-    expect(tpsAnsiColor(80, 100)).toBe("\x1b[38;2;80;220;80m"); // green (>= 75)
+  it.each([
+    [0, "\x1b[38;2;255;80;80m"],
+    [14.9999, "\x1b[38;2;255;80;80m"],
+    [15, "\x1b[38;2;255;165;0m"],
+    [15.0001, "\x1b[38;2;255;165;0m"],
+    [29.9999, "\x1b[38;2;255;165;0m"],
+    [30, "\x1b[38;2;255;215;0m"],
+    [30.0001, "\x1b[38;2;255;215;0m"],
+    [59.9999, "\x1b[38;2;255;215;0m"],
+    [60, "\x1b[38;2;80;220;80m"],
+    [60.0001, "\x1b[38;2;80;220;80m"],
+    [75, "\x1b[38;2;80;220;80m"],
+    [10000, "\x1b[38;2;80;220;80m"],
+    [50, "\x1b[38;2;255;215;0m"],
+    [100, "\x1b[38;2;80;220;80m"],
+    [10, "\x1b[38;2;255;80;80m"],
+  ])("returns the expected color for %s TPS", (rate, color) => {
+    expect(tpsAnsiColor(rate)).toBe(color);
   });
 });
 

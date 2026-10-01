@@ -60,19 +60,15 @@ export function hslToRgb(
 
 export function ttftAnsiColor(seconds: number): string {
   if (seconds >= 5) return "\x1b[38;2;255;80;80m"; // red (worst)
-  if (seconds >= 4) return "\x1b[38;2;255;110;180m"; // pink
   if (seconds >= 3) return "\x1b[38;2;255;165;0m"; // orange
   if (seconds >= 2) return "\x1b[38;2;255;215;0m"; // yellow
   return "\x1b[38;2;80;220;80m"; // green
 }
 
-export function tpsAnsiColor(rate: number, tokenCount: number): string {
-  if (tokenCount <= rate) return "\x1b[38;2;140;140;140m"; // dim grey
+export function tpsAnsiColor(rate: number): string {
   if (rate < 15) return "\x1b[38;2;255;80;80m"; // red (worst)
-  if (rate < 30) return "\x1b[38;2;255;110;180m"; // pink
-  if (rate < 45) return "\x1b[38;2;255;165;0m"; // orange
+  if (rate < 30) return "\x1b[38;2;255;165;0m"; // orange
   if (rate < 60) return "\x1b[38;2;255;215;0m"; // yellow
-  if (rate < 75) return "\x1b[38;2;80;180;255m"; // info blue
   return "\x1b[38;2;80;220;80m"; // green
 }
 
@@ -172,11 +168,6 @@ export class TokenRateTracker {
     if (rate === 0 && this._lastCompletedRate > 0)
       return this._lastCompletedRate;
     return rate;
-  }
-
-  liveTokenCount(): number {
-    if (!this._isStreaming) return this._lastCompletedTokenCount;
-    return Math.max(this._turnTokens, this._lastCompletedTokenCount);
   }
 
   get tokenCount(): number {

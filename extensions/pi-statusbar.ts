@@ -477,7 +477,6 @@ export default function initStatusBar(pi: ExtensionAPI): void {
               }
 
               const displayRate = tracker.liveTps();
-              const displayTokenCount = tracker.liveTokenCount();
               const RATE_DISPLAY_CAP = 9999;
               const displayRounded = Math.min(
                 RATE_DISPLAY_CAP,
@@ -489,22 +488,21 @@ export default function initStatusBar(pi: ExtensionAPI): void {
                   : `${displayRounded}`;
 
               const ttft = tracker.ttft;
-              let ttftStr: string;
-              if (ttft != null) {
-                ttftStr =
-                  ttft >= 100 ? `${Math.round(ttft)}s` : `${ttft.toFixed(2)}s`;
-              } else {
-                ttftStr = "0.00s";
-              }
+              const ttftStr =
+                ttft == null
+                  ? "—"
+                  : ttft >= 100
+                    ? `${Math.round(ttft)}s`
+                    : `${ttft.toFixed(2)}s`;
               const ttftPart =
                 ttft != null
                   ? `${ttftAnsiColor(ttft)}TTFT ${ttftStr}\x1b[0m`
-                  : `${ttftAnsiColor(0)}TTFT ${ttftStr}\x1b[0m`;
+                  : `TTFT ${ttftStr}`;
 
               const tpsPart =
                 displayRate > 0
-                  ? `${tpsAnsiColor(displayRate, displayTokenCount)}${displayLabel} TPS\x1b[0m`
-                  : `${theme.fg("muted", "0 TPS")}`;
+                  ? `${tpsAnsiColor(displayRate)}${displayLabel} TPS\x1b[0m`
+                  : "— TPS";
 
               const tokenSegmentText =
                 `${ttftPart}` +

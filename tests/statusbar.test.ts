@@ -34,7 +34,7 @@ describe("pi-statusbar footer extension", () => {
     };
 
     mockTheme = {
-      fg: (_color: string, text: string) => text,
+      fg: (_color: string, text: string) => `\x1b[38;2;140;140;140m${text}\x1b[0m`,
       bold: (text: string) => text,
     };
 
@@ -118,7 +118,48 @@ describe("pi-statusbar footer extension", () => {
     expect(cleanLine).toContain("$0.11");
   });
 
-  it("renders streaming rate and TTFT when token delta events occur", async () => {
+  it.each([
+    [4.7, "\x1b[38;2;80;220;80m"],
+    [20, "\x1b[38;2;255;215;0m"],
+    [40, "\x1b[38;2;255;165;0m"],
+    [50, "\x1b[38;2;255;80;80m"],
+  ])("renders context usage of %s percent in its threshold color", async (percent, color) => {
+    mockContext.getContextUsage.mockReturnValue({ percent, contextWindow: 1048576 });
+    initStatusBar(mockApi);
+    for (const h of handlers["session_start"] || []) {
+      await h({ type: "session_start" }, mockContext);
+    }
+
+    const footer = installedFooterFactory({ requestRender: vi.fn() }, mockTheme);
+    expect(footer.render(200)[0]).toContain(`${color}${percent.toFixed(1)}% of 1.0M used\x1b[0m`);
+  });
+
+  it("renders uncoloured placeholders before telemetry exists and while waiting for output", async () => {
+    initStatusBar(mockApi);
+    for (const h of handlers["session_start"] || []) {
+      await h({ type: "session_start" }, mockContext);
+    }
+    const footer = installedFooterFactory({ requestRender: vi.fn() }, mockTheme);
+    let line = footer.render(200)[0];
+    expect(line).toContain("\x1b[0m TTFT —");
+    expect(line).toContain("\x1b[0m — TPS");
+
+    for (const h of handlers["turn_start"] || []) {
+      await h({ type: "turn_start" }, mockContext);
+    }
+    line = footer.render(200)[0];
+    expect(line).toContain("\x1b[0m TTFT —");
+    expect(line).toContain("\x1b[0m — TPS");
+  });
+
+  it.each([
+    [0.2, 50, "\x1b[38;2;80;220;80m", "\x1b[38;2;255;215;0m", "0.20s", "50"],
+    [2, 60, "\x1b[38;2;255;215;0m", "\x1b[38;2;80;220;80m", "2.00s", "60"],
+    [3, 20, "\x1b[38;2;255;165;0m", "\x1b[38;2;255;165;0m", "3.00s", "20"],
+    [5, 10, "\x1b[38;2;255;80;80m", "\x1b[38;2;255;80;80m", "5.00s", "10"],
+    [0, 10, "\x1b[38;2;80;220;80m", "\x1b[38;2;255;80;80m", "0.00s", "10"],
+    [100, 10000, "\x1b[38;2;255;80;80m", "\x1b[38;2;80;220;80m", "100s", "9999+"],
+  ])("renders %s seconds TTFT and %s TPS in their threshold colors", async (ttft, rate, ttftColor, tpsColor, ttftLabel, tpsLabel) => {
     initStatusBar(mockApi);
 
     const sessionStartHandlers = handlers["session_start"] || [];
@@ -134,7 +175,7 @@ describe("pi-statusbar footer extension", () => {
       await h({ type: "turn_start" }, mockContext);
     }
 
-    now = 1200; // 200ms TTFT
+    now = 1000 + ttft * 1000;
     const messageUpdateHandlers = handlers["message_update"] || [];
     for (const h of messageUpdateHandlers) {
       await h({
@@ -146,20 +187,20 @@ describe("pi-statusbar footer extension", () => {
           partial: {
             role: "assistant",
             content: [],
-            usage: { output: 25 },
+            usage: { output: rate / 2 },
           },
         },
       }, mockContext);
     }
 
-    now = 1700; // 500ms streaming time for 25 tokens = 50 TPS
+    now += 500; // half a second of streaming, with fewer tokens than TPS
     const messageEndHandlers = handlers["message_end"] || [];
     for (const h of messageEndHandlers) {
       await h({
         type: "message_end",
         message: {
           role: "assistant",
-          usage: { output: 25 },
+          usage: { output: rate / 2 },
         },
       }, mockContext);
     }
@@ -168,7 +209,16 @@ describe("pi-statusbar footer extension", () => {
     const lines = footer.render(120);
     const cleanLine = stripAnsi(lines[0]);
 
-    expect(cleanLine).toContain("TTFT 0.20s");
-    expect(cleanLine).toContain("50 TPS");
+    expect(cleanLine).toContain(`TTFT ${ttftLabel}`);
+    expect(cleanLine).toContain(`${tpsLabel} TPS`);
+    expect(lines[0]).toContain(`${ttftColor}TTFT ${ttftLabel}\x1b[0m`);
+    expect(lines[0]).toContain(`${tpsColor}${tpsLabel} TPS\x1b[0m`);
+
+    for (const h of handlers["model_select"] || []) {
+      await h({ type: "model_select" }, mockContext);
+    }
+    const resetLine = footer.render(200)[0];
+    expect(resetLine).toContain("\x1b[0m TTFT —");
+    expect(resetLine).toContain("\x1b[0m — TPS");
   });
 });

@@ -52,8 +52,9 @@ export function formatModelName(id: string | undefined): string {
 }
 
 export function contextAnsiColor(percent: number): string {
-  if (percent > 60) return "\x1b[38;2;255;80;80m"; // red
-  if (percent > 40) return "\x1b[38;2;255;165;0m"; // orange
+  if (percent >= 50) return "\x1b[38;2;255;80;80m"; // red
+  if (percent >= 40) return "\x1b[38;2;255;165;0m"; // orange
+  if (percent >= 20) return "\x1b[38;2;255;215;0m"; // yellow
   return "\x1b[38;2;80;220;80m"; // green
 }
 
