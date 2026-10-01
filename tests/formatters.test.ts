@@ -169,15 +169,24 @@ describe("contextAnsiColor", () => {
 });
 
 describe("costAnsiColor", () => {
-  it("returns appropriate color thresholds for cost", () => {
-    expect(costAnsiColor(1.0)).toBe("\x1b[38;2;255;80;80m"); // red (>= $1.00)
-    expect(costAnsiColor(2.5)).toBe("\x1b[38;2;255;80;80m"); // red
-    expect(costAnsiColor(0.5)).toBe("\x1b[38;2;255;165;0m"); // orange (cents)
-    expect(costAnsiColor(0.01)).toBe("\x1b[38;2;255;165;0m"); // orange
-    expect(costAnsiColor(0.005)).toBe("\x1b[38;2;255;215;0m"); // yellow (0.1¢ - 1¢)
-    expect(costAnsiColor(0.001)).toBe("\x1b[38;2;80;220;80m"); // green (<= 0.1¢)
-    expect(costAnsiColor(0.0005)).toBe("\x1b[38;2;80;220;80m"); // green
-    expect(costAnsiColor(0)).toBe("\x1b[38;2;80;220;80m"); // green
+  it.each([
+    [0, "\x1b[38;2;80;220;80m"],
+    [0.01, "\x1b[38;2;80;220;80m"],
+    [0.9999, "\x1b[38;2;80;220;80m"],
+    [1, "\x1b[38;2;80;220;80m"],
+    [1.0001, "\x1b[38;2;255;215;0m"],
+    [4.9999, "\x1b[38;2;255;215;0m"],
+    [5, "\x1b[38;2;255;215;0m"],
+    [5.0001, "\x1b[38;2;255;165;0m"],
+    [9.9999, "\x1b[38;2;255;165;0m"],
+    [10, "\x1b[38;2;255;165;0m"],
+    [10.0001, "\x1b[38;2;255;80;80m"],
+    [19.9999, "\x1b[38;2;255;80;80m"],
+    [20, "\x1b[38;2;255;80;80m"],
+    [20.0001, "\x1b[38;2;255;80;80m"],
+    [100, "\x1b[38;2;255;80;80m"],
+  ])("returns the expected color for cost %s USD", (cost, color) => {
+    expect(costAnsiColor(cost)).toBe(color);
   });
 });
 

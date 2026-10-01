@@ -58,10 +58,10 @@ export function contextAnsiColor(percent: number): string {
 }
 
 export function costAnsiColor(cost: number, _ceiling = 0): string {
-  if (cost >= 1.0) return "\x1b[38;2;255;80;80m"; // red (>= $1.00)
-  if (cost >= 0.01) return "\x1b[38;2;255;165;0m"; // orange (cents)
-  if (cost > 0.001) return "\x1b[38;2;255;215;0m"; // yellow (0.1¢ – 1¢)
-  return "\x1b[38;2;80;220;80m"; // green (<= 0.1¢)
+  if (cost > 10) return "\x1b[38;2;255;80;80m"; // red (> $10, including above $20)
+  if (cost > 5) return "\x1b[38;2;255;165;0m"; // orange (> $5, <= $10)
+  if (cost > 1) return "\x1b[38;2;255;215;0m"; // yellow (> $1, <= $5)
+  return "\x1b[38;2;80;220;80m"; // green (<= $1)
 }
 
 export function stripAnsi(s: string): string {

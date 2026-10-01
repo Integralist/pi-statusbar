@@ -96,6 +96,7 @@ describe("pi-statusbar footer extension", () => {
     expect(cleanLine).toContain("(feat/test)");
     expect(cleanLine).toContain("2.3% of 1.0M used");
     expect(cleanLine).toContain("$0.11");
+    expect(lines[0]).toContain("\x1b[38;2;80;220;80m$0.11\x1b[0m");
   });
 
   it("renders statusbar without branch on main branch", async () => {
