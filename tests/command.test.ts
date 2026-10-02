@@ -123,6 +123,34 @@ describe("/statusbar command", () => {
     );
   });
 
+  it("handles 'nerdfonts' status, toggle, on and off", async () => {
+    const handler = commands["statusbar"].handler;
+
+    await handler("nerdfonts status", mockContext);
+    expect(mockContext.ui.notify).toHaveBeenCalledWith(
+      expect.stringContaining("pi-statusbar Nerd Fonts:"),
+      "info"
+    );
+
+    await handler("nerdfonts on", mockContext);
+    expect(mockContext.ui.notify).toHaveBeenCalledWith(
+      "pi-statusbar Nerd Fonts: enabled",
+      "info"
+    );
+
+    await handler("nerdfonts off", mockContext);
+    expect(mockContext.ui.notify).toHaveBeenCalledWith(
+      "pi-statusbar Nerd Fonts: disabled",
+      "info"
+    );
+
+    await handler("nerdfonts toggle", mockContext);
+    expect(mockContext.ui.notify).toHaveBeenCalledWith(
+      "pi-statusbar Nerd Fonts: enabled",
+      "info"
+    );
+  });
+
   it("shows usage warning on unknown subcommand", async () => {
     const handler = commands["statusbar"].handler;
 

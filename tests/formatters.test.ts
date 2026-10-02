@@ -5,6 +5,7 @@ import {
   middleTruncate,
   formatCwd,
   formatModelName,
+  getModelIcon,
   contextAnsiColor,
   costAnsiColor,
   stripAnsi,
@@ -148,6 +149,39 @@ describe("formatModelName", () => {
       "claude-3-5-sonnet"
     );
     expect(formatModelName("gpt-4o-2024-08-06")).toBe("gpt-4o");
+  });
+});
+
+describe("getModelIcon", () => {
+  it("returns empty string when id is undefined or empty", () => {
+    expect(getModelIcon(undefined)).toBe("");
+    expect(getModelIcon("")).toBe("");
+  });
+
+  it("returns Claude icon for claude and anthropic models", () => {
+    expect(getModelIcon("claude-3-5-sonnet-20241022")).toBe("\uec82");
+    expect(getModelIcon("anthropic/claude-3-7-sonnet")).toBe("\uec82");
+    expect(getModelIcon("amazon-bedrock/global.anthropic.claude-opus-5-5")).toBe(
+      "\uec82"
+    );
+  });
+
+  it("returns Copilot icon for GPT, o1/o3, and OpenAI models", () => {
+    expect(getModelIcon("gpt-4o")).toBe("\uf4b8");
+    expect(getModelIcon("openai/gpt-4.5-preview")).toBe("\uf4b8");
+    expect(getModelIcon("o1-mini")).toBe("\uf4b8");
+    expect(getModelIcon("o3-mini")).toBe("\uf4b8");
+    expect(getModelIcon("chatgpt-4o-latest")).toBe("\uf4b8");
+  });
+
+  it("returns Google icon for Gemini and Google models", () => {
+    expect(getModelIcon("gemini-1.5-pro")).toBe("\uf1a0");
+    expect(getModelIcon("google/gemini-2.0-flash")).toBe("\uf1a0");
+  });
+
+  it("returns default robot icon for other models", () => {
+    expect(getModelIcon("deepseek-reasoner")).toBe("\udb81\udea9");
+    expect(getModelIcon("mistral-large")).toBe("\udb81\udea9");
   });
 });
 

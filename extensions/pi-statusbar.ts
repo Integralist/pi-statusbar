@@ -16,6 +16,7 @@ import {
   formatTokens,
   formatCwd,
   formatModelName,
+  getModelIcon,
   contextAnsiColor,
   costAnsiColor,
   stripAnsi,
@@ -39,6 +40,9 @@ import {
   describeSegments,
   readGlobalSegments,
   writeGlobalSegments,
+  readGlobalNerdFonts,
+  writeGlobalNerdFonts,
+  parseBoolean,
 } from "../src/config.js";
 
 const SEGMENT_SEPARATOR = "·";
@@ -184,6 +188,7 @@ export default function initStatusBar(pi: ExtensionAPI): void {
   let cachedMcpSummary = "";
   let mcpSummaryText = "";
   let visibleSegments: SegmentName[] = readGlobalSegments();
+  let nerdFontsEnabled = readGlobalNerdFonts();
 
   const refresh = (force = false) => {
     if (!requestRender) return;
@@ -208,6 +213,12 @@ export default function initStatusBar(pi: ExtensionAPI): void {
     refresh(true);
   };
 
+  const setNerdFontsEnabled = (enabled: boolean) => {
+    nerdFontsEnabled = enabled;
+    writeGlobalNerdFonts(enabled);
+    refresh(true);
+  };
+
   const openSegmentConfigurator = async (ctx: ExtensionContext) => {
     await ctx.ui.custom((tui, theme, _kb, done) => {
       const segmentVisibility = new Map(
@@ -222,15 +233,24 @@ export default function initStatusBar(pi: ExtensionAPI): void {
         );
       };
 
-      const segmentItems: SettingItem[] = ALL_SEGMENTS.map(
-        (segment): SettingItem => ({
-          id: `segment:${segment}`,
-          label: SEGMENT_LABELS[segment],
-          description: "Footer segment visibility",
-          currentValue: segmentVisibility.get(segment) ? "shown" : "hidden",
-          values: ["shown", "hidden"],
-        })
-      );
+      const segmentItems: SettingItem[] = [
+        ...ALL_SEGMENTS.map(
+          (segment): SettingItem => ({
+            id: `segment:${segment}`,
+            label: SEGMENT_LABELS[segment],
+            description: "Footer segment visibility",
+            currentValue: segmentVisibility.get(segment) ? "shown" : "hidden",
+            values: ["shown", "hidden"],
+          })
+        ),
+        {
+          id: "option:nerdfonts",
+          label: "Nerd Font icons",
+          description: "Show model glyph next to LLM name",
+          currentValue: nerdFontsEnabled ? "enabled" : "disabled",
+          values: ["enabled", "disabled"],
+        },
+      ];
 
       const container = new Container();
       container.addChild(
@@ -259,6 +279,8 @@ export default function initStatusBar(pi: ExtensionAPI): void {
             if (!isSegmentName(segment)) return;
             segmentVisibility.set(segment, newValue === "shown");
             persistSegmentsFromVisibility();
+          } else if (id === "option:nerdfonts") {
+            setNerdFontsEnabled(newValue === "enabled");
           }
         },
         () => done(undefined),
@@ -301,6 +323,38 @@ export default function initStatusBar(pi: ExtensionAPI): void {
       if (section === "list" || section === "ls") {
         ctx.ui.notify(
           `pi-statusbar footer: ${describeSegments(visibleSegments)}`,
+          "info"
+        );
+        return;
+      }
+
+      if (
+        section === "nerdfonts" ||
+        section === "nerdfont" ||
+        section === "icons"
+      ) {
+        if (!action || action === "status") {
+          ctx.ui.notify(
+            `pi-statusbar Nerd Fonts: ${nerdFontsEnabled ? "enabled" : "disabled"}`,
+            "info"
+          );
+          return;
+        }
+        if (action === "toggle") {
+          setNerdFontsEnabled(!nerdFontsEnabled);
+        } else {
+          const parsed = parseBoolean(action);
+          if (parsed === undefined) {
+            ctx.ui.notify(
+              "Usage: /statusbar nerdfonts [on|off|toggle|status]",
+              "warning"
+            );
+            return;
+          }
+          setNerdFontsEnabled(parsed);
+        }
+        ctx.ui.notify(
+          `pi-statusbar Nerd Fonts: ${nerdFontsEnabled ? "enabled" : "disabled"}`,
           "info"
         );
         return;
@@ -412,6 +466,7 @@ export default function initStatusBar(pi: ExtensionAPI): void {
 
   pi.on("session_start", async (_event, ctx) => {
     visibleSegments = readGlobalSegments();
+    nerdFontsEnabled = readGlobalNerdFonts();
     updateMcpSummary();
 
     if (ctx.hasUI) {
@@ -515,7 +570,11 @@ export default function initStatusBar(pi: ExtensionAPI): void {
               const costGradientCeiling = 1.0;
               const costSegmentText = `${costAnsiColor(sessionCost, costGradientCeiling)}${formatCost(sessionCost)}\x1b[0m`;
 
-              const modelText = `${modelName} ${effortLevel}`;
+              const modelIcon = nerdFontsEnabled
+                ? getModelIcon(ctx.model?.id)
+                : "";
+              const modelPrefix = modelIcon ? `${modelIcon} ` : "";
+              const modelText = `${modelPrefix}${modelName} ${effortLevel}`;
 
               const separator = ` ${theme.fg("muted", SEGMENT_SEPARATOR)} `;
               const separatorWidth = 3; // " · "

@@ -6,6 +6,7 @@ export type SegmentName = "directory" | "model" | "context" | "tokens" | "cost";
 
 export type GlobalBarConfig = {
   segments?: SegmentName[];
+  nerdFonts?: boolean;
 };
 
 export const DEFAULT_SEGMENTS: SegmentName[] = [
@@ -93,6 +94,8 @@ export function readGlobalConfig(
     >;
     return {
       segments: parseSerializedSegments(data.segments) ?? undefined,
+      nerdFonts:
+        typeof data.nerdFonts === "boolean" ? data.nerdFonts : undefined,
     };
   } catch {
     return {};
@@ -134,4 +137,31 @@ export function writeGlobalSegments(
     { ...existing, segments: serializeSegments(segments) },
     configPath
   );
+}
+
+export function parseBoolean(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const lower = value.trim().toLowerCase();
+    if (["1", "true", "yes", "on"].includes(lower)) return true;
+    if (["0", "false", "no", "off"].includes(lower)) return false;
+  }
+  return undefined;
+}
+
+export function readGlobalNerdFonts(
+  configPath: string = getConfigPath(),
+  envVal?: string
+): boolean {
+  const env = parseBoolean(envVal ?? process.env.PI_STATUSBAR_NERD_FONTS);
+  if (env !== undefined) return env;
+  return readGlobalConfig(configPath).nerdFonts ?? false;
+}
+
+export function writeGlobalNerdFonts(
+  enabled: boolean,
+  configPath: string = getConfigPath()
+): void {
+  const existing = readGlobalConfig(configPath);
+  writeGlobalConfig({ ...existing, nerdFonts: enabled }, configPath);
 }

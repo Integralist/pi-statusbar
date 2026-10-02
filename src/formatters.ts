@@ -51,6 +51,26 @@ export function formatModelName(id: string | undefined): string {
   return base.replace(/-\d{8}$/, "").replace(/-\d{4}-\d{2}-\d{2}$/, "");
 }
 
+export function getModelIcon(id: string | undefined): string {
+  if (!id) return "";
+  const lower = id.toLowerCase();
+  if (lower.includes("claude") || lower.includes("anthropic")) {
+    return "\uec82"; // nf-cod-claude
+  }
+  if (
+    lower.includes("gpt") ||
+    lower.includes("openai") ||
+    lower.includes("chatgpt") ||
+    /(^|[-_/])o[134]([-_/]|$)/.test(lower)
+  ) {
+    return "\uf4b8"; // nf-oct-copilot
+  }
+  if (lower.includes("gemini") || lower.includes("google")) {
+    return "\uf1a0"; // nf-fa-google
+  }
+  return "\udb81\udea9"; // nf-md-robot
+}
+
 export function contextAnsiColor(percent: number): string {
   if (percent >= 50) return "\x1b[38;2;255;80;80m"; // red
   if (percent >= 40) return "\x1b[38;2;255;165;0m"; // orange

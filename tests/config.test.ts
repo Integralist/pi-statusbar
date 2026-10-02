@@ -10,6 +10,9 @@ import {
   readGlobalSegments,
   writeGlobalConfig,
   writeGlobalSegments,
+  readGlobalNerdFonts,
+  writeGlobalNerdFonts,
+  parseBoolean,
   ALL_SEGMENTS,
   DEFAULT_SEGMENTS,
 } from "../src/config.js";
@@ -142,6 +145,39 @@ describe("src/config", () => {
     it("respects PI_STATUSBAR_SHOW override", () => {
       process.env.PI_STATUSBAR_SHOW = "directory,cost";
       expect(readGlobalSegments(tempConfigFile)).toEqual(["directory", "cost"]);
+    });
+
+    it("parses booleans from string or boolean values", () => {
+      expect(parseBoolean(true)).toBe(true);
+      expect(parseBoolean("1")).toBe(true);
+      expect(parseBoolean("true")).toBe(true);
+      expect(parseBoolean("on")).toBe(true);
+      expect(parseBoolean(false)).toBe(false);
+      expect(parseBoolean("0")).toBe(false);
+      expect(parseBoolean("false")).toBe(false);
+      expect(parseBoolean("off")).toBe(false);
+      expect(parseBoolean("unknown")).toBeUndefined();
+      expect(parseBoolean(undefined)).toBeUndefined();
+    });
+
+    it("reads nerdFonts config with default false", () => {
+      expect(readGlobalNerdFonts(tempConfigFile)).toBe(false);
+    });
+
+    it("writes and reads nerdFonts config", () => {
+      writeGlobalNerdFonts(true, tempConfigFile);
+      expect(readGlobalNerdFonts(tempConfigFile)).toBe(true);
+      writeGlobalNerdFonts(false, tempConfigFile);
+      expect(readGlobalNerdFonts(tempConfigFile)).toBe(false);
+    });
+
+    it("respects PI_STATUSBAR_NERD_FONTS environment variable", () => {
+      process.env.PI_STATUSBAR_NERD_FONTS = "1";
+      expect(readGlobalNerdFonts(tempConfigFile)).toBe(true);
+
+      process.env.PI_STATUSBAR_NERD_FONTS = "0";
+      writeGlobalNerdFonts(true, tempConfigFile);
+      expect(readGlobalNerdFonts(tempConfigFile)).toBe(false);
     });
   });
 });

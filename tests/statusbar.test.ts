@@ -118,6 +118,26 @@ describe("pi-statusbar footer extension", () => {
     expect(cleanLine).toContain("$0.11");
   });
 
+  it("renders model icon when PI_STATUSBAR_NERD_FONTS is enabled", async () => {
+    process.env.PI_STATUSBAR_NERD_FONTS = "1";
+    try {
+      initStatusBar(mockApi);
+
+      const sessionStartHandlers = handlers["session_start"] || [];
+      for (const h of sessionStartHandlers) {
+        await h({ type: "session_start" }, mockContext);
+      }
+
+      const footer = installedFooterFactory({ requestRender: vi.fn() }, mockTheme);
+      const lines = footer.render(120);
+      const cleanLine = stripAnsi(lines[0]);
+
+      expect(cleanLine).toContain("\uec82 claude-3-7-sonnet high");
+    } finally {
+      delete process.env.PI_STATUSBAR_NERD_FONTS;
+    }
+  });
+
   it.each([
     [4.7, "\x1b[38;2;80;220;80m"],
     [20, "\x1b[38;2;255;215;0m"],
