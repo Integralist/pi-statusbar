@@ -12,8 +12,6 @@ A custom statusline / footer extension for the [pi coding agent](https://github.
 - **Live Streaming Metrics:** Measures Time-To-First-Token (TTFT) and throughput rate (Tokens Per Second - TPS), excluding tool call execution pauses.
 - **Session Expenditure:** Live session cost calculation summed across current branch messages.
 - **MCP Server & Tool Counts:** Right-aligned MCP integration overview.
-- **Extension Statuses:** Shows status text from other extensions without
-  recognizing their keys or requiring a router package.
 - **Interactive Configuration:** Customize visible segments via `/statusbar` CLI or interactive TUI modal.
 - **Flicker-Free Transitions:** Sticky footer patching during session resets and reloads.
 
@@ -50,8 +48,6 @@ the selected virtual model before the first response).
 Responses ending in error or abort do not replace the last successful response,
 and tree navigation or session restoration refreshes the branch-local model,
 context usage, and branch cost.
-
-Other extensions' status text appears after the configured segments.
 
 ## Commands
 
