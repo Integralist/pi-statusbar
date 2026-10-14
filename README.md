@@ -5,8 +5,9 @@ A custom statusline / footer extension for the [pi coding agent](https://github.
 ## Features
 
 - **Active Directory & Git Branch:** Shows CWD (`~/path`), and automatically displays active Git branch in parentheses (`~/path (<branch>)`) when working on any branch other than `main`.
-- **Model & Effort Level:** Shows selected physical settings, or separates a
-  virtual selection from the last observed physical response.
+- **Model & Effort Level:** Displays the selected model and thinking level, or
+  the auto-selected physical model and thinking level when using a virtual
+  model.
 - **Context Window Utilization:** Real-time context usage percentage and total capacity (`X.X% of X.XM used`).
 - **Live Streaming Metrics:** Measures Time-To-First-Token (TTFT) and throughput rate (Tokens Per Second - TPS), excluding tool call execution pauses.
 - **Session Expenditure:** Live session cost calculation summed across current branch messages.
@@ -33,44 +34,24 @@ claude-3-7-sonnet high · ~/code/my-repo · 4.2% of 1.0M used · TTFT 0.42s · 8
 | Segment     | Description                                                                | Example                                |
 | ----------- | -------------------------------------------------------------------------- | -------------------------------------- |
 | `directory` | Working directory with `~` home contraction and Git branch when not `main` | `~/code/pi-statusbar (feat/telemetry)` |
-| `model`     | Selected physical settings or last observed virtual dispatch               | `claude-3-7-sonnet high`               |
+| `model`     | Active (or auto-selected) model and normalized thinking effort             | `claude-3-7-sonnet high`               |
 | `context`   | Context window usage percentage and size                                   | `3.1% of 1.0M used`                    |
 | `tokens`    | Time to first token (TTFT) and tokens per second (TPS)                     | `TTFT 0.35s · 72 TPS`                  |
 | `cost`      | Accrued session cost from current branch messages                          | `$0.0820`                              |
 
 ## Physical and Virtual Models
 
-A physical selection keeps the existing model, effort and optional icon display,
-even when its name is `auto`. The selected physical model and selected effort
-always take priority over older response metadata.
+A physical selection displays the selected model, effort, and optional icon.
+When a virtual model (`api: "pi-virtual"`, such as `auto`) is selected, the
+`model` segment shows the auto-selected physical model, effort, and icon from
+the latest successful assistant response on the active branch (or falls back to
+the selected virtual model before the first response).
 
-With a native virtual selection, the model segment distinguishes selection from
-observation:
+Responses ending in error or abort do not replace the last successful response,
+and tree navigation or session restoration refreshes the branch-local model,
+context usage, and branch cost.
 
-```text
-selected auto low; physical pending/unknown
-selected auto low; last observed gpt-a high
-selected auto low; last observed claude-b xhigh
-selected auto low; last observed claude-b effort unknown
-```
-
-The last observed model, effort and icon come from the same successful assistant
-response on the active branch and a matching physical catalog entry. Responses
-ending in error or abort do not replace successful evidence. Missing catalog entries
-leave the physical pair unknown; historical messages without effort metadata
-show `effort unknown`, never the virtual selection's effort.
-
-Tree navigation and session restoration refresh this branch-local observation,
-context usage and branch cost. An observation describes a past response, not the
-next route, and does not change the selected model or effort.
-
-Other extensions' status text appears after the configured segments. It updates
-without model events and is truncated to the available terminal width. With no
-statuses, the existing physical and MCP layout is unchanged.
-
-The proposal preview is tested with physical sessions on Pi 0.84.2 and 1.2.0,
-and with synthetic native virtual sessions on Pi 1.2.0. No Auto extension is
-loaded by these tests. This is not a package-install or future-host guarantee.
+Other extensions' status text appears after the configured segments.
 
 ## Commands
 
