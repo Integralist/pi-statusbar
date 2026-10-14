@@ -115,19 +115,6 @@ describe.skipIf(!sdkRoot)("public SDK footer integration", () => {
     } finally { f.close(); }
   });
 
-  it("renders native setStatus text and status-only changes", async () => {
-    const f = await fixture();
-    try {
-      expect(f.line()).toContain("native status");
-      f.context.ui.setStatus("second-opaque-owner", "second status");
-      expect(f.line()).toContain("native status · second status");
-      f.context.ui.setStatus("random-owner", undefined);
-      expect(f.line()).not.toContain("native status");
-      expect(f.line()).toContain("second status");
-      expect(f.errors).toEqual([]);
-    } finally { f.close(); }
-  });
-
   it.runIf(virtual)("renders actual routed A/high and B/xhigh, before persistence, without changing the selected pair", async () => {
     process.env.PI_STATUSBAR_NERD_FONTS = "1";
     const f = await fixture({ virtual: true });

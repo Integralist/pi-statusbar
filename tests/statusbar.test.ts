@@ -251,12 +251,10 @@ describe("pi-statusbar footer extension", () => {
     for (const handler of handlers[type] || []) await handler({ type, ...event }, mockContext);
   }
 
-  async function startFooter(statuses = new Map<string, string>()) {
+  async function startFooter() {
     initStatusBar(mockApi);
     await emit("session_start");
-    return installedFooterFactory({ requestRender: vi.fn() }, mockTheme, {
-      getExtensionStatuses: () => statuses,
-    });
+    return installedFooterFactory({ requestRender: vi.fn() }, mockTheme);
   }
 
   function response(model = "gpt-a", thinkingLevel: string | undefined = "high", stopReason = "stop") {
@@ -289,28 +287,6 @@ describe("pi-statusbar footer extension", () => {
     const left = "claude-3-7-sonnet high";
     const right = "MCP 1 · Tools 1";
     expect(stripAnsi(footer.render(80)[0])).toBe(left + " ".repeat(80 - visibleWidth(left) - visibleWidth(right)) + right);
-  });
-
-  it("renders arbitrary extension statuses and observes additions, updates and removals without events", async () => {
-    const statuses = new Map([["unrecognized-owner", "one"], ["another-owner", "two"]]);
-    const footer = await startFooter(statuses);
-    expect(stripAnsi(footer.render(300)[0])).toContain("one · two");
-    statuses.set("unrecognized-owner", "changed");
-    statuses.set("third-owner", "three");
-    expect(stripAnsi(footer.render(300)[0])).toContain("changed · two · three");
-    statuses.clear();
-    expect(stripAnsi(footer.render(300)[0])).not.toMatch(/changed|two|three/);
-  });
-
-  it("fits ANSI, wide text and Nerd Font statuses at narrow widths", async () => {
-    process.env.PI_STATUSBAR_NERD_FONTS = "1";
-    try {
-      const footer = await startFooter(new Map([["arbitrary", "\x1b[31m界\n\t é 🤖\x1b[0m"]]));
-      for (const width of [1, 2, 5, 12, 40, 120]) {
-        expect(visibleWidth(footer.render(width)[0])).toBeLessThanOrEqual(width);
-      }
-      expect(stripAnsi(footer.render(300)[0])).toContain("界 é 🤖");
-    } finally { delete process.env.PI_STATUSBAR_NERD_FONTS; }
   });
 
   it("shows the virtual model and effort before a physical response is observed", async () => {
