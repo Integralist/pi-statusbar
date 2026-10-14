@@ -9,6 +9,7 @@ import {
   type SettingItem,
   SettingsList,
   truncateToWidth,
+  visibleWidth,
 } from "@earendil-works/pi-tui";
 import { getGitBranch } from "../src/git.js";
 import {
@@ -19,7 +20,6 @@ import {
   getModelIcon,
   contextAnsiColor,
   costAnsiColor,
-  stripAnsi,
 } from "../src/formatters.js";
 import {
   sessionCostFromBranch,
@@ -177,6 +177,43 @@ export function applyStickyFooterTransitionPatch(): void {
 
 const FOOTER_REPAINT_MS = 1000;
 
+type ResponseObservation = {
+  role: "assistant";
+  stopReason: string;
+  provider?: string;
+  model?: string;
+  thinkingLevel?: unknown;
+};
+
+function isSuccessfulResponse(message: unknown): message is ResponseObservation {
+  if (!message || typeof message !== "object") return false;
+  const response = message as ResponseObservation;
+  return (
+    response.role === "assistant" &&
+    ["stop", "length", "toolUse"].includes(response.stopReason)
+  );
+}
+
+function observedPhysicalPair(
+  message: ResponseObservation | undefined,
+  ctx: ExtensionContext
+) {
+  if (
+    typeof message?.provider !== "string" ||
+    typeof message.model !== "string"
+  ) return;
+  const model = ctx.modelRegistry?.find?.(message.provider, message.model);
+  if (!model || String(model.api) === "pi-virtual") return;
+  const effort =
+    typeof message.thinkingLevel === "string" &&
+    ["off", "minimal", "low", "medium", "high", "xhigh", "max"].includes(
+      message.thinkingLevel
+    )
+      ? message.thinkingLevel
+      : undefined;
+  return { model, effort };
+}
+
 export default function initStatusBar(pi: ExtensionAPI): void {
   applyStickyFooterTransitionPatch();
 
@@ -186,6 +223,8 @@ export default function initStatusBar(pi: ExtensionAPI): void {
   let cachedLine: string | null = null;
   let cachedWidth = -1;
   let cachedMcpSummary = "";
+  let cachedStatuses = "";
+  let lastResponse: ResponseObservation | undefined;
   let mcpSummaryText = "";
   let visibleSegments: SegmentName[] = readGlobalSegments();
   let nerdFontsEnabled = readGlobalNerdFonts();
@@ -198,6 +237,27 @@ export default function initStatusBar(pi: ExtensionAPI): void {
     requestRender();
   };
   const tracker = new TokenRateTracker();
+
+  const rebuildObservation = (ctx: ExtensionContext) => {
+    lastResponse = undefined;
+    for (const entry of ctx.sessionManager.getBranch()) {
+      if (entry.type === "message" && isSuccessfulResponse(entry.message)) {
+        lastResponse = entry.message;
+      }
+    }
+  };
+
+  const displayedModel = (ctx: ExtensionContext) => {
+    const selected = ctx.model;
+    const selectedEffort = normalizeEffortLevel(String(pi.getThinkingLevel()));
+    if (String(selected?.api) !== "pi-virtual") {
+      return { model: selected, effort: selectedEffort, selection: undefined };
+    }
+    return {
+      ...observedPhysicalPair(lastResponse, ctx),
+      selection: `selected ${formatModelName(selected?.id)} ${selectedEffort}`,
+    };
+  };
 
   const updateMcpSummary = () => {
     try {
@@ -427,7 +487,8 @@ export default function initStatusBar(pi: ExtensionAPI): void {
     },
   });
 
-  pi.on("model_select", async () => {
+  pi.on("model_select", async (_event, ctx) => {
+    rebuildObservation(ctx);
     tracker.reset();
     refresh(true);
   });
@@ -451,6 +512,8 @@ export default function initStatusBar(pi: ExtensionAPI): void {
     refresh();
   });
   pi.on("message_end", async (event) => {
+    // The SDK emits message_end before appending the finalized message to history.
+    if (isSuccessfulResponse(event.message)) lastResponse = event.message;
     if (
       visibleSegments.includes("tokens") &&
       event.message?.role === "assistant"
@@ -463,14 +526,23 @@ export default function initStatusBar(pi: ExtensionAPI): void {
   pi.on("session_before_tree", async () => {
     tracker.cancel();
   });
+  pi.on("session_tree", async (_event, ctx) => {
+    rebuildObservation(ctx);
+    refresh(true);
+  });
 
   pi.on("session_start", async (_event, ctx) => {
+    rebuildObservation(ctx);
+    tracker.reset();
+    cachedLine = null;
+    cachedWidth = -1;
+    needsRecompute = true;
     visibleSegments = readGlobalSegments();
     nerdFontsEnabled = readGlobalNerdFonts();
     updateMcpSummary();
 
     if (ctx.hasUI) {
-      ctx.ui.setFooter((tui, theme) => {
+      ctx.ui.setFooter((tui, theme, footerData) => {
         requestRender = () => {
           tui.requestRender();
         };
@@ -489,32 +561,42 @@ export default function initStatusBar(pi: ExtensionAPI): void {
             cachedLine = null;
             cachedWidth = -1;
           },
-          invalidate() {},
+          invalidate() {
+            cachedLine = null;
+            needsRecompute = true;
+          },
           render(width: number): string[] {
             try {
               const mcpSummary = mcpSummaryText;
+              const statuses = [
+                ...(footerData?.getExtensionStatuses?.().values() ?? []),
+              ]
+                .map((text) => text.replace(/[\r\n\t]/g, " ").replace(/ +/g, " ").trim())
+                .filter(Boolean)
+                .join(" · ");
 
               if (
                 !needsRecompute &&
                 width === cachedWidth &&
                 cachedLine !== null &&
-                mcpSummary === cachedMcpSummary
+                mcpSummary === cachedMcpSummary &&
+                statuses === cachedStatuses
               ) {
                 return [truncateToWidth(cachedLine, width)];
               }
               needsRecompute = false;
               cachedWidth = width;
               cachedMcpSummary = mcpSummary;
-              const mcpSummaryWidth = mcpSummary.length;
+              cachedStatuses = statuses;
+              const mcpSummaryWidth = visibleWidth(mcpSummary);
               const leftWidthBudget =
                 mcpSummaryWidth > 0
                   ? Math.max(0, width - mcpSummaryWidth - 1)
                   : width;
 
-              const modelName = formatModelName(ctx.model?.id);
-              const effortLevel = normalizeEffortLevel(
-                String(pi.getThinkingLevel())
-              );
+              const pair = displayedModel(ctx);
+              const modelName = formatModelName(pair.model?.id);
+              const effortLevel = pair.effort ?? "effort unknown";
               const usage = ctx.getContextUsage();
 
               let contextSegmentText: string;
@@ -571,10 +653,13 @@ export default function initStatusBar(pi: ExtensionAPI): void {
               const costSegmentText = `${costAnsiColor(sessionCost, costGradientCeiling)}${formatCost(sessionCost)}\x1b[0m`;
 
               const modelIcon = nerdFontsEnabled
-                ? getModelIcon(ctx.model?.id)
+                ? getModelIcon(pair.model?.id)
                 : "";
               const modelPrefix = modelIcon ? `${modelIcon} ` : "";
-              const modelText = `${modelPrefix}${modelName} ${effortLevel}`;
+              const physicalText = `${modelPrefix}${modelName} ${effortLevel}`;
+              const modelText = pair.selection
+                ? `${pair.selection}; ${pair.model ? `last observed ${physicalText}` : "physical pending/unknown"}`
+                : physicalText;
 
               const separator = ` ${theme.fg("muted", SEGMENT_SEPARATOR)} `;
               const separatorWidth = 3; // " · "
@@ -601,7 +686,7 @@ export default function initStatusBar(pi: ExtensionAPI): void {
                 .filter((segment) => segment !== "directory")
                 .reduce(
                   (sum, segment) =>
-                    sum + stripAnsi(segmentTexts[segment] ?? "").length,
+                    sum + visibleWidth(segmentTexts[segment] ?? ""),
                   0
                 );
               const directoryMaxWidth = Math.max(
@@ -617,9 +702,12 @@ export default function initStatusBar(pi: ExtensionAPI): void {
                 directoryMaxWidth
               );
 
-              const line = visibleSegments
+              const segmentLine = visibleSegments
                 .map((segment) => segmentTexts[segment])
                 .filter((segment): segment is string => segment !== null)
+                .join(separator);
+              const line = [segmentLine, statuses]
+                .filter(Boolean)
                 .join(separator);
 
               let composed = line;
@@ -627,7 +715,7 @@ export default function initStatusBar(pi: ExtensionAPI): void {
                 if (mcpSummaryWidth >= width) {
                   composed = mcpSummary;
                 } else {
-                  const leftWidth = stripAnsi(line).length;
+                  const leftWidth = visibleWidth(line);
                   const gap = width - leftWidth - mcpSummaryWidth;
                   if (gap >= 1) {
                     composed = `${line}${" ".repeat(gap)}${mcpSummary}`;
