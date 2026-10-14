@@ -223,7 +223,6 @@ export default function initStatusBar(pi: ExtensionAPI): void {
   let cachedLine: string | null = null;
   let cachedWidth = -1;
   let cachedMcpSummary = "";
-  let cachedStatuses = "";
   let lastResponse: ResponseObservation | undefined;
   let mcpSummaryText = "";
   let visibleSegments: SegmentName[] = readGlobalSegments();
@@ -543,7 +542,7 @@ export default function initStatusBar(pi: ExtensionAPI): void {
     updateMcpSummary();
 
     if (ctx.hasUI) {
-      ctx.ui.setFooter((tui, theme, footerData) => {
+      ctx.ui.setFooter((tui, theme) => {
         requestRender = () => {
           tui.requestRender();
         };
@@ -569,26 +568,18 @@ export default function initStatusBar(pi: ExtensionAPI): void {
           render(width: number): string[] {
             try {
               const mcpSummary = mcpSummaryText;
-              const statuses = [
-                ...(footerData?.getExtensionStatuses?.().values() ?? []),
-              ]
-                .map((text) => text.replace(/[\r\n\t]/g, " ").replace(/ +/g, " ").trim())
-                .filter(Boolean)
-                .join(" · ");
 
               if (
                 !needsRecompute &&
                 width === cachedWidth &&
                 cachedLine !== null &&
-                mcpSummary === cachedMcpSummary &&
-                statuses === cachedStatuses
+                mcpSummary === cachedMcpSummary
               ) {
                 return [truncateToWidth(cachedLine, width)];
               }
               needsRecompute = false;
               cachedWidth = width;
               cachedMcpSummary = mcpSummary;
-              cachedStatuses = statuses;
               const mcpSummaryWidth = visibleWidth(mcpSummary);
               const leftWidthBudget =
                 mcpSummaryWidth > 0
@@ -700,12 +691,9 @@ export default function initStatusBar(pi: ExtensionAPI): void {
                 directoryMaxWidth
               );
 
-              const segmentLine = visibleSegments
+              const line = visibleSegments
                 .map((segment) => segmentTexts[segment])
                 .filter((segment): segment is string => segment !== null)
-                .join(separator);
-              const line = [segmentLine, statuses]
-                .filter(Boolean)
                 .join(separator);
 
               let composed = line;
