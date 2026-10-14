@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import initStatusBar from "../extensions/pi-statusbar.js";
 import { clearGitBranchCache, setGitExecutor } from "../src/git.js";
+import { visibleWidth } from "@earendil-works/pi-tui";
 import { stripAnsi } from "../src/formatters.js";
 
 describe("pi-statusbar footer extension", () => {
@@ -11,7 +12,11 @@ describe("pi-statusbar footer extension", () => {
   let mockTheme: any;
   let installedFooterFactory: any;
 
+  afterEach(() => vi.unstubAllEnvs());
+
   beforeEach(() => {
+    vi.stubEnv("PI_STATUSBAR_NERD_FONTS", "0");
+    vi.stubEnv("PI_STATUSBAR_SHOW", "directory,model,context,tokens,cost");
     clearGitBranchCache();
     setGitExecutor(null);
     vi.restoreAllMocks();
@@ -241,4 +246,171 @@ describe("pi-statusbar footer extension", () => {
     expect(resetLine).toContain("\x1b[0m TTFT —");
     expect(resetLine).toContain("\x1b[0m — TPS");
   });
+
+  async function emit(type: string, event: Record<string, unknown> = {}) {
+    for (const handler of handlers[type] || []) await handler({ type, ...event }, mockContext);
+  }
+
+  async function startFooter(statuses = new Map<string, string>()) {
+    initStatusBar(mockApi);
+    await emit("session_start");
+    return installedFooterFactory({ requestRender: vi.fn() }, mockTheme, {
+      getExtensionStatuses: () => statuses,
+    });
+  }
+
+  function response(model = "gpt-a", thinkingLevel: string | undefined = "high", stopReason = "stop") {
+    return { role: "assistant", provider: "offline", model, thinkingLevel, stopReason, usage: { cost: { total: 0.25 } } };
+  }
+
+  function virtualContext(branch: unknown[] = []) {
+    mockContext.model = { id: "auto", provider: "synthetic", api: "pi-virtual" };
+    mockApi.getThinkingLevel.mockReturnValue("low");
+    mockContext.modelRegistry = { find: (provider: string, id: string) =>
+      provider === "offline" && ["gpt-a", "claude-b"].includes(id)
+        ? { id, api: "offline-api", provider } : undefined };
+    mockContext.sessionManager.getBranch.mockReturnValue(branch);
+  }
+
+  it("preserves the exact no-status physical layout and accepts missing footerData on older callers", async () => {
+    process.env.PI_STATUSBAR_SHOW = "model,context,cost";
+    try {
+      const footer = await startFooter();
+      expect(stripAnsi(footer.render(200)[0])).toBe("claude-3-7-sonnet high · 2.3% of 1.0M used · $0.11");
+      const oldCaller = installedFooterFactory({ requestRender: vi.fn() }, mockTheme);
+      expect(stripAnsi(oldCaller.render(200)[0])).toBe("claude-3-7-sonnet high · 2.3% of 1.0M used · $0.11");
+    } finally { delete process.env.PI_STATUSBAR_SHOW; }
+  });
+
+  it("keeps the established MCP right edge when no extension statuses exist", async () => {
+    process.env.PI_STATUSBAR_SHOW = "model";
+    mockApi.getAllTools.mockReturnValue([{ name: "mcp_alpha_read", description: "[MCP: alpha] read" }]);
+    const footer = await startFooter();
+    const left = "claude-3-7-sonnet high";
+    const right = "MCP 1 · Tools 1";
+    expect(stripAnsi(footer.render(80)[0])).toBe(left + " ".repeat(80 - visibleWidth(left) - visibleWidth(right)) + right);
+  });
+
+  it("renders arbitrary extension statuses and observes additions, updates and removals without events", async () => {
+    const statuses = new Map([["unrecognized-owner", "one"], ["another-owner", "two"]]);
+    const footer = await startFooter(statuses);
+    expect(stripAnsi(footer.render(300)[0])).toContain("one · two");
+    statuses.set("unrecognized-owner", "changed");
+    statuses.set("third-owner", "three");
+    expect(stripAnsi(footer.render(300)[0])).toContain("changed · two · three");
+    statuses.clear();
+    expect(stripAnsi(footer.render(300)[0])).not.toMatch(/changed|two|three/);
+  });
+
+  it("fits ANSI, wide text and Nerd Font statuses at narrow widths", async () => {
+    process.env.PI_STATUSBAR_NERD_FONTS = "1";
+    try {
+      const footer = await startFooter(new Map([["arbitrary", "\x1b[31m界\n\t é 🤖\x1b[0m"]]));
+      for (const width of [1, 2, 5, 12, 40, 120]) {
+        expect(visibleWidth(footer.render(width)[0])).toBeLessThanOrEqual(width);
+      }
+      expect(stripAnsi(footer.render(300)[0])).toContain("界 é 🤖");
+    } finally { delete process.env.PI_STATUSBAR_NERD_FONTS; }
+  });
+
+  it("shows selected virtual settings separately from pending physical evidence", async () => {
+    virtualContext();
+    const footer = await startFooter();
+    expect(stripAnsi(footer.render(300)[0])).toContain("selected auto low; physical pending/unknown");
+  });
+
+  it("uses matching response model, effort and icon before message_end is persisted", async () => {
+    virtualContext();
+    process.env.PI_STATUSBAR_NERD_FONTS = "1";
+    try {
+      const footer = await startFooter();
+      footer.render(300);
+      await emit("message_end", { message: response() });
+      expect(mockContext.sessionManager.getBranch()).toEqual([]);
+      const line = stripAnsi(footer.render(300)[0]);
+      expect(line).toContain("last observed \uf4b8 gpt-a high");
+      expect(line).not.toContain("gpt-a low");
+    } finally { delete process.env.PI_STATUSBAR_NERD_FONTS; }
+  });
+
+  it.each(["error", "aborted", "pending", "deferred"])("does not treat %s metadata as successful evidence", async (stopReason) => {
+    virtualContext([{ type: "message", message: response() }]);
+    const footer = await startFooter();
+    await emit("message_end", { message: response("claude-b", "xhigh", stopReason) });
+    expect(stripAnsi(footer.render(300)[0])).toContain("last observed gpt-a high");
+    expect(stripAnsi(footer.render(300)[0])).not.toContain("claude-b");
+  });
+
+  it("keeps effort unknown when the latest successful historical response lacks it", async () => {
+    const historical = response("claude-b");
+    delete (historical as { thinkingLevel?: string }).thinkingLevel;
+    virtualContext([{ type: "message", message: response() }, { type: "message", message: historical }]);
+    const footer = await startFooter();
+    expect(stripAnsi(footer.render(300)[0])).toContain("last observed claude-b effort unknown");
+    expect(stripAnsi(footer.render(300)[0])).not.toMatch(/claude-b (low|high)/);
+  });
+
+  it.each(["missing", "virtual"])("does not substitute older evidence for an unresolved %s catalog target", async (kind) => {
+    virtualContext([{ type: "message", message: response() }, { type: "message", message: response("unknown", "xhigh") }]);
+    if (kind === "virtual") mockContext.modelRegistry.find = () => ({ id: "unknown", api: "pi-virtual" });
+    const footer = await startFooter();
+    const line = stripAnsi(footer.render(300)[0]);
+    expect(line).toContain("physical pending/unknown");
+    expect(line).not.toContain("last observed");
+  });
+
+  it("physical selection named auto and selected effort outrank older observed metadata", async () => {
+    virtualContext([{ type: "message", message: response() }]);
+    mockContext.model = { id: "auto", api: "offline-api" };
+    mockApi.getThinkingLevel.mockReturnValue("xhigh");
+    const footer = await startFooter();
+    expect(stripAnsi(footer.render(300)[0])).toContain("auto xhigh");
+    expect(stripAnsi(footer.render(300)[0])).not.toMatch(/last observed|selected auto|gpt-a/);
+  });
+
+  it("tree refresh resets branch observation, context usage and cost at the same width", async () => {
+    virtualContext([{ type: "message", message: response() }]);
+    const footer = await startFooter();
+    expect(stripAnsi(footer.render(300)[0])).toContain("last observed gpt-a high");
+    mockContext.sessionManager.getBranch.mockReturnValue([]);
+    mockContext.getContextUsage.mockReturnValue({ percent: 0, contextWindow: 128000 });
+    await emit("session_tree");
+    const line = stripAnsi(footer.render(300)[0]);
+    expect(line).toContain("physical pending/unknown");
+    expect(line).toContain("0.0% of 128k used");
+    expect(line).toContain("$0");
+    expect(line).not.toContain("gpt-a");
+  });
+
+  it("selection and replacement session initialization cannot retain another branch observation", async () => {
+    virtualContext([{ type: "message", message: response() }]);
+    const footer = await startFooter();
+    expect(stripAnsi(footer.render(300)[0])).toContain("last observed gpt-a high");
+    mockContext.sessionManager.getBranch.mockReturnValue([{ type: "message", message: response("claude-b", "xhigh") }]);
+    await emit("model_select");
+    expect(stripAnsi(footer.render(300)[0])).toContain("last observed claude-b xhigh");
+    mockContext.sessionManager.getBranch.mockReturnValue([]);
+    await emit("session_start");
+    const replacement = installedFooterFactory({ requestRender: vi.fn() }, mockTheme);
+    expect(stripAnsi(replacement.render(300)[0])).toContain("physical pending/unknown");
+    expect(stripAnsi(replacement.render(300)[0])).not.toMatch(/gpt-a|claude-b/);
+  });
+
+  it("a finalized but unresolvable response clears older evidence instead of reusing its effort", async () => {
+    virtualContext([{ type: "message", message: response() }]);
+    const footer = await startFooter();
+    expect(stripAnsi(footer.render(300)[0])).toContain("last observed gpt-a high");
+    await emit("message_end", { message: response("not-in-catalog", "xhigh") });
+    expect(stripAnsi(footer.render(300)[0])).toContain("physical pending/unknown");
+    expect(stripAnsi(footer.render(300)[0])).not.toContain("last observed");
+  });
+
+  it("invalidate rebuilds cached themed output", async () => {
+    const footer = await startFooter();
+    footer.render(300);
+    mockTheme.fg = (_color: string, text: string) => `\x1b[32m${text}\x1b[0m`;
+    footer.invalidate();
+    expect(footer.render(300)[0]).toContain("\x1b[32m·\x1b[0m");
+  });
+
 });

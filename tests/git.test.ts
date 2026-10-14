@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { getGitBranch, clearGitBranchCache, BRANCH_CACHE_TTL_MS, GitExecutor } from "../src/git.js";
 import { mkdtempSync, rmSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -12,8 +13,8 @@ describe("getGitBranch", () => {
 
   it("returns current branch name for a git repository", () => {
     const branch = getGitBranch(process.cwd());
-    // Since this repo is on 'main', it should return 'main'
-    expect(branch).toBe("main");
+    const current = execFileSync("git", ["branch", "--show-current"], { cwd: process.cwd(), encoding: "utf8" }).trim();
+    expect(branch).toBe(current);
   });
 
   it("returns null for non-git directory", () => {
