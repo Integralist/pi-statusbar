@@ -313,10 +313,10 @@ describe("pi-statusbar footer extension", () => {
     } finally { delete process.env.PI_STATUSBAR_NERD_FONTS; }
   });
 
-  it("shows selected virtual settings separately from pending physical evidence", async () => {
+  it("shows the virtual model and effort before a physical response is observed", async () => {
     virtualContext();
     const footer = await startFooter();
-    expect(stripAnsi(footer.render(300)[0])).toContain("selected auto low; physical pending/unknown");
+    expect(stripAnsi(footer.render(300)[0])).toContain("auto low");
   });
 
   it("uses matching response model, effort and icon before message_end is persisted", async () => {
@@ -328,7 +328,7 @@ describe("pi-statusbar footer extension", () => {
       await emit("message_end", { message: response() });
       expect(mockContext.sessionManager.getBranch()).toEqual([]);
       const line = stripAnsi(footer.render(300)[0]);
-      expect(line).toContain("last observed \uf4b8 gpt-a high");
+      expect(line).toContain("\uf4b8 gpt-a high");
       expect(line).not.toContain("gpt-a low");
     } finally { delete process.env.PI_STATUSBAR_NERD_FONTS; }
   });
@@ -337,17 +337,17 @@ describe("pi-statusbar footer extension", () => {
     virtualContext([{ type: "message", message: response() }]);
     const footer = await startFooter();
     await emit("message_end", { message: response("claude-b", "xhigh", stopReason) });
-    expect(stripAnsi(footer.render(300)[0])).toContain("last observed gpt-a high");
+    expect(stripAnsi(footer.render(300)[0])).toContain("gpt-a high");
     expect(stripAnsi(footer.render(300)[0])).not.toContain("claude-b");
   });
 
-  it("keeps effort unknown when the latest successful historical response lacks it", async () => {
+  it("falls back to selected effort when the latest successful historical response lacks it", async () => {
     const historical = response("claude-b");
     delete (historical as { thinkingLevel?: string }).thinkingLevel;
     virtualContext([{ type: "message", message: response() }, { type: "message", message: historical }]);
     const footer = await startFooter();
-    expect(stripAnsi(footer.render(300)[0])).toContain("last observed claude-b effort unknown");
-    expect(stripAnsi(footer.render(300)[0])).not.toMatch(/claude-b (low|high)/);
+    expect(stripAnsi(footer.render(300)[0])).toContain("claude-b low");
+    expect(stripAnsi(footer.render(300)[0])).not.toContain("claude-b high");
   });
 
   it.each(["missing", "virtual"])("does not substitute older evidence for an unresolved %s catalog target", async (kind) => {
@@ -355,8 +355,8 @@ describe("pi-statusbar footer extension", () => {
     if (kind === "virtual") mockContext.modelRegistry.find = () => ({ id: "unknown", api: "pi-virtual" });
     const footer = await startFooter();
     const line = stripAnsi(footer.render(300)[0]);
-    expect(line).toContain("physical pending/unknown");
-    expect(line).not.toContain("last observed");
+    expect(line).toContain("auto low");
+    expect(line).not.toContain("gpt-a");
   });
 
   it("physical selection named auto and selected effort outrank older observed metadata", async () => {
@@ -365,18 +365,18 @@ describe("pi-statusbar footer extension", () => {
     mockApi.getThinkingLevel.mockReturnValue("xhigh");
     const footer = await startFooter();
     expect(stripAnsi(footer.render(300)[0])).toContain("auto xhigh");
-    expect(stripAnsi(footer.render(300)[0])).not.toMatch(/last observed|selected auto|gpt-a/);
+    expect(stripAnsi(footer.render(300)[0])).not.toContain("gpt-a");
   });
 
   it("tree refresh resets branch observation, context usage and cost at the same width", async () => {
     virtualContext([{ type: "message", message: response() }]);
     const footer = await startFooter();
-    expect(stripAnsi(footer.render(300)[0])).toContain("last observed gpt-a high");
+    expect(stripAnsi(footer.render(300)[0])).toContain("gpt-a high");
     mockContext.sessionManager.getBranch.mockReturnValue([]);
     mockContext.getContextUsage.mockReturnValue({ percent: 0, contextWindow: 128000 });
     await emit("session_tree");
     const line = stripAnsi(footer.render(300)[0]);
-    expect(line).toContain("physical pending/unknown");
+    expect(line).toContain("auto low");
     expect(line).toContain("0.0% of 128k used");
     expect(line).toContain("$0");
     expect(line).not.toContain("gpt-a");
@@ -385,24 +385,24 @@ describe("pi-statusbar footer extension", () => {
   it("selection and replacement session initialization cannot retain another branch observation", async () => {
     virtualContext([{ type: "message", message: response() }]);
     const footer = await startFooter();
-    expect(stripAnsi(footer.render(300)[0])).toContain("last observed gpt-a high");
+    expect(stripAnsi(footer.render(300)[0])).toContain("gpt-a high");
     mockContext.sessionManager.getBranch.mockReturnValue([{ type: "message", message: response("claude-b", "xhigh") }]);
     await emit("model_select");
-    expect(stripAnsi(footer.render(300)[0])).toContain("last observed claude-b xhigh");
+    expect(stripAnsi(footer.render(300)[0])).toContain("claude-b xhigh");
     mockContext.sessionManager.getBranch.mockReturnValue([]);
     await emit("session_start");
     const replacement = installedFooterFactory({ requestRender: vi.fn() }, mockTheme);
-    expect(stripAnsi(replacement.render(300)[0])).toContain("physical pending/unknown");
+    expect(stripAnsi(replacement.render(300)[0])).toContain("auto low");
     expect(stripAnsi(replacement.render(300)[0])).not.toMatch(/gpt-a|claude-b/);
   });
 
   it("a finalized but unresolvable response clears older evidence instead of reusing its effort", async () => {
     virtualContext([{ type: "message", message: response() }]);
     const footer = await startFooter();
-    expect(stripAnsi(footer.render(300)[0])).toContain("last observed gpt-a high");
+    expect(stripAnsi(footer.render(300)[0])).toContain("gpt-a high");
     await emit("message_end", { message: response("not-in-catalog", "xhigh") });
-    expect(stripAnsi(footer.render(300)[0])).toContain("physical pending/unknown");
-    expect(stripAnsi(footer.render(300)[0])).not.toContain("last observed");
+    expect(stripAnsi(footer.render(300)[0])).toContain("auto low");
+    expect(stripAnsi(footer.render(300)[0])).not.toContain("gpt-a");
   });
 
   it("invalidate rebuilds cached themed output", async () => {

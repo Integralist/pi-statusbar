@@ -133,13 +133,13 @@ describe.skipIf(!sdkRoot)("public SDK footer integration", () => {
     const f = await fixture({ virtual: true });
     try {
       await f.selectVirtual();
-      expect(f.line()).toContain("selected auto low; physical pending/unknown");
+      expect(f.line()).toContain("auto low");
       await f.respond();
-      expect(f.line()).toContain("last observed \uf4b8 gpt-a high");
+      expect(f.line()).toContain("\uf4b8 gpt-a high");
       expect(f.eventFrames.at(-1)).toMatchObject({ persisted: false });
-      expect(f.eventFrames.at(-1)?.line).toContain("last observed \uf4b8 gpt-a high");
+      expect(f.eventFrames.at(-1)?.line).toContain("\uf4b8 gpt-a high");
       f.route("claude-b"); await f.respond();
-      expect(f.line()).toContain("last observed \uec82 claude-b xhigh");
+      expect(f.line()).toContain("\uec82 claude-b xhigh");
       expect(f.session.model?.api).toBe("pi-virtual");
       expect(f.session.thinkingLevel).toBe("low");
       expect(f.fake.state.callCount).toBe(2);
@@ -181,7 +181,7 @@ describe.skipIf(!sdkRoot)("public SDK footer integration", () => {
       expect(f.line()).toContain("$0.25");
       expect(f.line()).not.toContain("$0.75");
       resumed = await fixture({ virtual: true, manager: f.manager });
-      expect(resumed.line()).toContain("selected auto low; last observed gpt-a high");
+      expect(resumed.line()).toContain("gpt-a high");
       expect(resumed.line()).not.toContain("claude-b");
       expect(resumed.line()).toContain("$0.25");
       expect(resumed.session.messages.filter((message: any) => message.role === "assistant")).toHaveLength(1);
@@ -197,17 +197,17 @@ describe.skipIf(!sdkRoot)("public SDK footer integration", () => {
       f.route("claude-b"); await f.respond("error");
       const latest = () => f.session.messages.filter((message: any) => message.role === "assistant").at(-1);
       expect(latest()).toMatchObject({ stopReason: "error", provider: "statusbar-offline", model: "claude-b", thinkingLevel: "xhigh" });
-      expect(f.line()).toContain("last observed gpt-a high");
+      expect(f.line()).toContain("gpt-a high");
       expect(f.line()).not.toContain("claude-b");
       await f.respond("aborted");
       expect(latest()).toMatchObject({ stopReason: "aborted", provider: "statusbar-offline", model: "claude-b", thinkingLevel: "xhigh" });
-      expect(f.line()).toContain("last observed gpt-a high");
+      expect(f.line()).toContain("gpt-a high");
       expect(f.line()).not.toContain("claude-b");
       f.failRouting(); await f.respond();
       const last = f.session.messages.filter((message: any) => message.role === "assistant").at(-1);
       expect(last.stopReason).toBe("error");
       expect(last.errorMessage).toContain("offline route rejected");
-      expect(f.line()).toContain("last observed gpt-a high");
+      expect(f.line()).toContain("gpt-a high");
       await f.session.setModel(f.runtime.getModel("statusbar-offline", "claude-b"));
       f.session.setThinkingLevel("xhigh");
       expect(f.line()).toContain("claude-b xhigh");
@@ -216,14 +216,14 @@ describe.skipIf(!sdkRoot)("public SDK footer integration", () => {
     } finally { f.close(); }
   });
 
-  it.runIf(virtual)("shows unknown before a successful response even after native routing failure", async () => {
+  it.runIf(virtual)("shows virtual model before a successful response even after native routing failure", async () => {
     const f = await fixture({ virtual: true });
     try {
       await f.selectVirtual(); f.failRouting(); await f.respond();
       const last = f.session.messages.filter((message: any) => message.role === "assistant").at(-1);
       expect(last.stopReason).toBe("error");
       expect(last.errorMessage).toContain("offline route rejected");
-      expect(f.line()).toContain("physical pending/unknown");
+      expect(f.line()).toContain("auto low");
       expect(f.line()).not.toContain("last observed");
       expect(f.fake.state.callCount).toBe(0);
       expect(f.errors).toEqual([]);
@@ -244,11 +244,11 @@ describe.skipIf(!sdkRoot)("public SDK footer integration", () => {
     try {
       expect(f.session.model?.api).toBe("pi-virtual");
       if (kind === "no effort") {
-        expect(f.line()).toContain("last observed claude-b effort unknown");
-        expect(f.line()).not.toMatch(/claude-b (low|high|xhigh)/);
+        expect(f.line()).toContain("claude-b low");
+        expect(f.line()).not.toMatch(/claude-b (high|xhigh)/);
       } else {
-        expect(f.line()).toContain("physical pending/unknown");
-        expect(f.line()).not.toContain("last observed");
+        expect(f.line()).toContain("auto low");
+        expect(f.line()).not.toContain("claude-b");
       }
       expect(f.fake.state.callCount).toBe(0);
       expect(f.errors).toEqual([]);
