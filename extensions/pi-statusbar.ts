@@ -251,12 +251,13 @@ export default function initStatusBar(pi: ExtensionAPI): void {
     const selected = ctx.model;
     const selectedEffort = normalizeEffortLevel(String(pi.getThinkingLevel()));
     if (String(selected?.api) !== "pi-virtual") {
-      return { model: selected, effort: selectedEffort, selection: undefined };
+      return { model: selected, effort: selectedEffort };
     }
-    return {
-      ...observedPhysicalPair(lastResponse, ctx),
-      selection: `selected ${formatModelName(selected?.id)} ${selectedEffort}`,
-    };
+    const observed = observedPhysicalPair(lastResponse, ctx);
+    if (observed) {
+      return { model: observed.model, effort: observed.effort ?? selectedEffort };
+    }
+    return { model: selected, effort: selectedEffort };
   };
 
   const updateMcpSummary = () => {
@@ -596,7 +597,7 @@ export default function initStatusBar(pi: ExtensionAPI): void {
 
               const pair = displayedModel(ctx);
               const modelName = formatModelName(pair.model?.id);
-              const effortLevel = pair.effort ?? "effort unknown";
+              const effortLevel = pair.effort;
               const usage = ctx.getContextUsage();
 
               let contextSegmentText: string;
@@ -656,10 +657,7 @@ export default function initStatusBar(pi: ExtensionAPI): void {
                 ? getModelIcon(pair.model?.id)
                 : "";
               const modelPrefix = modelIcon ? `${modelIcon} ` : "";
-              const physicalText = `${modelPrefix}${modelName} ${effortLevel}`;
-              const modelText = pair.selection
-                ? `${pair.selection}; ${pair.model ? `last observed ${physicalText}` : "physical pending/unknown"}`
-                : physicalText;
+              const modelText = `${modelPrefix}${modelName} ${effortLevel}`;
 
               const separator = ` ${theme.fg("muted", SEGMENT_SEPARATOR)} `;
               const separatorWidth = 3; // " · "
