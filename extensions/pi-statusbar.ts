@@ -185,6 +185,18 @@ type ResponseObservation = {
   thinkingLevel?: unknown;
 };
 
+const AUTO_MODEL_PROVIDER = "pi-auto-model";
+const AUTO_MODEL_ID = "auto";
+const AUTO_MODEL_TIERS = ["trivial", "moderate", "complex", "frontier"] as const;
+type AutoModelTier = (typeof AUTO_MODEL_TIERS)[number];
+
+function isAutoModelTier(value: unknown): value is AutoModelTier {
+  return (
+    typeof value === "string" &&
+    (AUTO_MODEL_TIERS as readonly string[]).includes(value)
+  );
+}
+
 function isSuccessfulResponse(message: unknown): message is ResponseObservation {
   if (!message || typeof message !== "object") return false;
   const response = message as ResponseObservation;
@@ -214,6 +226,34 @@ function observedPhysicalPair(
   return { model, effort };
 }
 
+function extractAutoModelTier(entry: {
+  type: string;
+  customType?: string;
+  data?: unknown;
+}): AutoModelTier | undefined {
+  if (entry.type !== "custom" || !entry.data || typeof entry.data !== "object") {
+    return undefined;
+  }
+  const data = entry.data as Record<string, unknown>;
+  if (
+    entry.customType === "pi.virtual-model-state" &&
+    data.provider === AUTO_MODEL_PROVIDER &&
+    data.modelId === AUTO_MODEL_ID &&
+    data.state &&
+    typeof data.state === "object"
+  ) {
+    const tier = (data.state as { tier?: unknown }).tier;
+    if (isAutoModelTier(tier)) return tier;
+  }
+  if (
+    entry.customType === "pi-auto-model.classifier-usage" &&
+    isAutoModelTier(data.tier)
+  ) {
+    return data.tier;
+  }
+  return undefined;
+}
+
 export default function initStatusBar(pi: ExtensionAPI): void {
   applyStickyFooterTransitionPatch();
 
@@ -224,6 +264,7 @@ export default function initStatusBar(pi: ExtensionAPI): void {
   let cachedWidth = -1;
   let cachedMcpSummary = "";
   let lastResponse: ResponseObservation | undefined;
+  let lastResponseTier: AutoModelTier | undefined;
   let mcpSummaryText = "";
   let visibleSegments: SegmentName[] = readGlobalSegments();
   let nerdFontsEnabled = readGlobalNerdFonts();
@@ -237,11 +278,27 @@ export default function initStatusBar(pi: ExtensionAPI): void {
   };
   const tracker = new TokenRateTracker();
 
+  const latestBranchTier = (
+    ctx: ExtensionContext
+  ): AutoModelTier | undefined => {
+    let tier: AutoModelTier | undefined;
+    for (const entry of ctx.sessionManager.getBranch()) {
+      const found = extractAutoModelTier(entry);
+      if (found) tier = found;
+    }
+    return tier;
+  };
+
   const rebuildObservation = (ctx: ExtensionContext) => {
     lastResponse = undefined;
+    lastResponseTier = undefined;
+    let pendingTier: AutoModelTier | undefined;
     for (const entry of ctx.sessionManager.getBranch()) {
+      const foundTier = extractAutoModelTier(entry);
+      if (foundTier) pendingTier = foundTier;
       if (entry.type === "message" && isSuccessfulResponse(entry.message)) {
         lastResponse = entry.message;
+        lastResponseTier = pendingTier;
       }
     }
   };
@@ -250,13 +307,20 @@ export default function initStatusBar(pi: ExtensionAPI): void {
     const selected = ctx.model;
     const selectedEffort = normalizeEffortLevel(String(pi.getThinkingLevel()));
     if (String(selected?.api) !== "pi-virtual") {
-      return { model: selected, effort: selectedEffort };
+      return { model: selected, effort: selectedEffort, tier: undefined };
     }
+    const isPiAutoModel =
+      selected?.provider === AUTO_MODEL_PROVIDER &&
+      selected?.id === AUTO_MODEL_ID;
     const observed = observedPhysicalPair(lastResponse, ctx);
     if (observed) {
-      return { model: observed.model, effort: observed.effort ?? selectedEffort };
+      return {
+        model: observed.model,
+        effort: observed.effort ?? selectedEffort,
+        tier: isPiAutoModel ? lastResponseTier : undefined,
+      };
     }
-    return { model: selected, effort: selectedEffort };
+    return { model: selected, effort: selectedEffort, tier: undefined };
   };
 
   const updateMcpSummary = () => {
@@ -511,9 +575,12 @@ export default function initStatusBar(pi: ExtensionAPI): void {
       tracker.record(event.assistantMessageEvent);
     refresh();
   });
-  pi.on("message_end", async (event) => {
+  pi.on("message_end", async (event, ctx) => {
     // The SDK emits message_end before appending the finalized message to history.
-    if (isSuccessfulResponse(event.message)) lastResponse = event.message;
+    if (isSuccessfulResponse(event.message)) {
+      lastResponse = event.message;
+      lastResponseTier = latestBranchTier(ctx);
+    }
     if (
       visibleSegments.includes("tokens") &&
       event.message?.role === "assistant"
@@ -648,7 +715,8 @@ export default function initStatusBar(pi: ExtensionAPI): void {
                 ? getModelIcon(pair.model?.id)
                 : "";
               const modelPrefix = modelIcon ? `${modelIcon} ` : "";
-              const modelText = `${modelPrefix}${modelName} ${effortLevel}`;
+              const tierSuffix = pair.tier ? ` (${pair.tier})` : "";
+              const modelText = `${modelPrefix}${modelName} ${effortLevel}${tierSuffix}`;
 
               const separator = ` ${theme.fg("muted", SEGMENT_SEPARATOR)} `;
               const separatorWidth = 3; // " · "
