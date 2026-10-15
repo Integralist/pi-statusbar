@@ -381,6 +381,52 @@ describe("pi-statusbar footer extension", () => {
     expect(stripAnsi(footer.render(300)[0])).not.toContain("gpt-a");
   });
 
+  it("shows the tier in parentheses when pi-auto-model/auto is selected", async () => {
+    virtualContext([
+      {
+        type: "custom",
+        customType: "pi.virtual-model-state",
+        data: {
+          provider: "pi-auto-model",
+          modelId: "auto",
+          state: {
+            version: 1,
+            current: { provider: "offline", model: "gpt-a", effort: "high" },
+            tier: "complex",
+          },
+        },
+      },
+      { type: "message", message: response("gpt-a", "high") },
+    ]);
+    mockContext.model = { id: "auto", provider: "pi-auto-model", api: "pi-virtual" };
+    const footer = await startFooter();
+    expect(stripAnsi(footer.render(300)[0])).toContain("gpt-a high (complex)");
+  });
+
+  it("reads the tier from classifier usage entries and omits it for non-pi-auto-model routers or physical models", async () => {
+    virtualContext([
+      {
+        type: "custom",
+        customType: "pi-auto-model.classifier-usage",
+        data: { outcome: "tier", tier: "moderate" },
+      },
+    ]);
+    mockContext.model = { id: "auto", provider: "pi-auto-model", api: "pi-virtual" };
+    const footer = await startFooter();
+    await emit("message_end", { message: response("gpt-a", "high") });
+    expect(stripAnsi(footer.render(300)[0])).toContain("gpt-a high (moderate)");
+
+    // Non-pi-auto-model virtual router does not show tier
+    mockContext.model = { id: "auto", provider: "synthetic", api: "pi-virtual" };
+    await emit("model_select");
+    expect(stripAnsi(footer.render(300)[0])).not.toContain("(moderate)");
+
+    // Physical model does not show tier
+    mockContext.model = { id: "gpt-a", provider: "offline", api: "offline-api" };
+    await emit("model_select");
+    expect(stripAnsi(footer.render(300)[0])).not.toContain("(moderate)");
+  });
+
   it("invalidate rebuilds cached themed output", async () => {
     const footer = await startFooter();
     footer.render(300);
