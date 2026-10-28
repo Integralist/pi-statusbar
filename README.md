@@ -1,41 +1,112 @@
 # pi-statusbar
 
-A custom statusline / footer extension for the [pi coding agent](https://github.com/earendil-works/pi) providing real-time telemetry, model context, streaming throughput, session cost, and automatic Git branch tracking.
+A custom statusline / footer extension for the
+[pi coding agent](https://github.com/earendil-works/pi) providing real-time
+telemetry, model context, streaming throughput, session cost, and automatic Git
+branch tracking.
 
 ## Features
 
-- **Active Directory & Git Branch:** Shows CWD (`~/path`), and automatically displays active Git branch in parentheses (`~/path (<branch>)`) when working on any branch other than `main`.
+- **Active Directory & Git Branch:** Shows CWD (`~/path`), and automatically
+  displays active Git branch in parentheses (`~/path (<branch>)`) when working
+  on any branch other than `main`.
 - **Model & Effort Level:** Displays the selected model and thinking level, or
   the auto-selected physical model and thinking level when using a virtual
   model.
-- **Context Window Utilization:** Real-time context usage percentage and total capacity (`X.X% of X.XM used`).
-- **Live Streaming Metrics:** Measures Time-To-First-Token (TTFT) and throughput rate (Tokens Per Second - TPS), excluding tool call execution pauses.
-- **Session Expenditure:** Live session cost calculation summed across current branch messages.
+- **Context Window Utilization:** Real-time context usage percentage, active
+  token count, and total capacity (`X.X% (XXk / X.XM)`).
+- **Turn Token I/O & Prompt Cache Hit Rate:** Shows prompt input tokens sent
+  (`↑`), prompt cache hit percentage (`(XX% cached)`), and response output
+  tokens (`↓`).
+- **Live Streaming Metrics:** Measures Time-To-First-Token (TTFT) and
+  throughput rate (Tokens Per Second - TPS), excluding tool call execution
+  pauses.
+- **Session Expenditure:** Live session cost calculation summed across current
+  branch messages.
 - **MCP Server & Tool Counts:** Right-aligned MCP integration overview.
-- **Interactive Configuration:** Customize visible segments via `/statusbar` CLI or interactive TUI modal.
-- **Flicker-Free Transitions:** Sticky footer patching during session resets and reloads.
+- **Interactive Configuration:** Customize visible segments via `/statusbar`
+  CLI or interactive TUI modal.
+- **Flicker-Free Transitions:** Sticky footer patching during session resets
+  and reloads.
 
 ## Status Bar Layout
 
-```text
-claude-3-7-sonnet high · ~/code/my-repo (feat/login) · 4.2% of 1.0M used · TTFT 0.42s · 85 TPS · $0.0412
+```txt
+~/code/my-repo (feat/login) · claude-3-7-sonnet high · 4.2% (42k / 1.0M) · ↑42k (89% cached) ↓560 · TTFT 0.42s · 85 TPS · $0.04
 ```
 
 When on `main` or in a non-git directory:
 
-```text
-claude-3-7-sonnet high · ~/code/my-repo · 4.2% of 1.0M used · TTFT 0.42s · 85 TPS · $0.0412
+```txt
+~/code/my-repo · claude-3-7-sonnet high · 4.2% (42k / 1.0M) · ↑42k (89% cached) ↓560 · TTFT 0.42s · 85 TPS · $0.04
 ```
 
 ## Segments
 
-| Segment     | Description                                                                | Example                                |
-| ----------- | -------------------------------------------------------------------------- | -------------------------------------- |
-| `directory` | Working directory with `~` home contraction and Git branch when not `main` | `~/code/pi-statusbar (feat/telemetry)` |
-| `model`     | Active (or auto-selected) model and normalized thinking effort             | `claude-3-7-sonnet high`               |
-| `context`   | Context window usage percentage and size                                   | `3.1% of 1.0M used`                    |
-| `tokens`    | Time to first token (TTFT) and tokens per second (TPS)                     | `TTFT 0.35s · 72 TPS`                  |
-| `cost`      | Accrued session cost from current branch messages                          | `$0.0820`                              |
+| Segment     | Description                                                                      | Example                                        |
+| ----------- | -------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `directory` | Working directory with `~` home contraction and Git branch when not `main`       | `~/code/pi-statusbar (feat/telemetry)`         |
+| `model`     | Active (or auto-selected) model and normalized thinking effort                   | `claude-3-7-sonnet high`                       |
+| `context`   | Context window usage percentage, active context tokens, and window size          | `4.2% (42k / 1.0M)`                            |
+| `tokens`    | Turn input/output tokens, cache hit rate, time to first token, and tokens/second | `↑42k (89% cached) ↓560 · TTFT 0.35s · 72 TPS` |
+| `cost`      | Accrued session cost from current branch messages                                | `$0.08`                                        |
+
+## How LLM Context, Token Usage, and Prompt Caching Work
+
+### Why a short prompt sends thousands of input tokens (`↑`)
+
+LLM APIs are stateless between requests. The server does not remember earlier
+turns on its own; instead, Pi sends the full conversation transcript on every
+turn:
+
+1. **Prompt 1:** Pi sends the system prompt, `AGENTS.md`, skills, tool schemas,
+   and `Prompt 1` (often 9k–16k+ tokens even when your prompt is `"hello"`).
+   The model generates `Response 1` (`↓` output tokens).
+2. **Prompt 2:** Pi resends that entire prefix plus `Response 1` and `Prompt 2`.
+
+Every assistant reply (`↓` output tokens) and every tool result (such as file
+reads or command output) is appended to the transcript and becomes part of the
+`↑` input sent on subsequent prompts.
+
+### The four token buckets and how providers price them
+
+Pi normalizes each model call's token usage into four buckets:
+
+1. **Cache Write (`cacheWrite`):** The conversation prefix stored in the
+   provider's prompt cache on the first turn or after a cache miss. Anthropic
+   bills a small write premium (~1.25× base input for 5m TTL, 2× for 1h TTL);
+   OpenAI and Gemini do not charge a separate write fee.
+2. **Cache Read (`cacheRead`):** The unchanged prefix reused on follow-up
+   turns. Providers discount cached reads by 50–90% (for example, 0.1× base
+   input on Claude).
+3. **Uncached Input (`input`):** Only the new tail added since the cached
+   prefix (your latest prompt and recent tool results), billed at 1× base input.
+4. **Output (`output`):** Tokens generated by the model for the current turn,
+   including visible text, tool-call arguments, and internal thinking/reasoning
+   tokens. Output tokens are decoded fresh on every response, never cached when
+   generated, and billed at the highest rate (typically 3–5× base input). On
+   the *next* turn, the visible response joins the conversation history and can
+   be cached as part of `↑` input.
+
+### Color Thresholds
+
+Indicators use a 4-step palette (green → yellow → orange → red):
+
+| Indicator              | Metric                                               | Green (Good) | Yellow (OK)   | Orange (Warn) | Red (High/Bad) |
+| ---------------------- | ---------------------------------------------------- | ------------ | ------------- | ------------- | -------------- |
+| **Context (`%`)**      | `tokens / contextWindow`                             | `< 20%`      | `20% – 39.9%` | `40% – 49.9%` | `>= 50%`       |
+| **Prompt Input (`↑`)** | Uncached input tokens (`inputTokens - cacheRead`)    | `< 20k`      | `20k – 49.9k` | `50k – 99.9k` | `>= 100k`      |
+| **Cache Hit (`%`)**    | `cacheRead / inputTokens` (uncolored on cold Turn 1) | `>= 75%`     | `50% – 74.9%` | `20% – 49.9%` | `< 20%`        |
+| **Turn Output (`↓`)**  | Output + thinking tokens across the prompt turn      | `< 4k`       | `4k – 9.9k`   | `10k – 19.9k` | `>= 20k`       |
+| **TTFT**               | Seconds to first streaming token                     | `< 2s`       | `2s – 2.99s`  | `3s – 4.99s`  | `>= 5s`        |
+| **Throughput (TPS)**   | Streaming output tokens per second                   | `>= 60`      | `30 – 59.9`   | `15 – 29.9`   | `< 15`         |
+| **Session Cost (`$`)** | Cumulative branch cost (USD)                         | `<= $1`      | `$1 – $5`     | `$5 – $10`    | `> $10`        |
+
+> [!NOTE]
+> On the first prompt of a session (or the first prompt after switching models),
+> a `0%` cache hit is expected because the cache is cold. `(0% cached)` renders
+> in neutral text on that initial turn and only applies cache-hit colors from
+> turn 2 onward (or whenever `cacheRead > 0`).
 
 ## Physical and Virtual Models
 
@@ -63,8 +134,10 @@ Configure statusbar segments directly from within Pi:
 
 ## Environment Variables
 
-- `PI_STATUSBAR_SHOW`: Comma-separated list of segments to display (e.g. `directory,model,cost`).
-- `PI_STATUSBAR_CONFIG`: Custom file path for persisting segment settings (defaults to `~/.pi/agent/pi-statusbar.json`).
+- `PI_STATUSBAR_SHOW`: Comma-separated list of segments to display (e.g.
+  `directory,model,cost`).
+- `PI_STATUSBAR_CONFIG`: Custom file path for persisting segment settings
+  (defaults to `~/.pi/agent/pi-statusbar.json`).
 
 ## Makefile Targets
 
