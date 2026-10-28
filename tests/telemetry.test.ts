@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   sessionCostFromBranch,
+  turnTokenUsageFromBranch,
   TokenRateTracker,
   ttftAnsiColor,
   tpsAnsiColor,
@@ -52,6 +53,133 @@ describe("sessionCostFromBranch", () => {
       },
     ];
     expect(sessionCostFromBranch(branch)).toBeCloseTo(0.1061, 4);
+  });
+});
+
+describe("turnTokenUsageFromBranch", () => {
+  it("returns null when branch has no assistant token usage", () => {
+    expect(turnTokenUsageFromBranch([])).toBeNull();
+    expect(
+      turnTokenUsageFromBranch([
+        { type: "message", message: { role: "user", content: "hello" } },
+        { type: "message", message: { role: "assistant", usage: { cost: { total: 0.05 } } } },
+      ])
+    ).toBeNull();
+  });
+
+  it("extracts latest prompt input/cache and sums output across the current turn", () => {
+    const branch = [
+      { type: "message", message: { role: "user", content: "first prompt" } },
+      {
+        type: "message",
+        message: {
+          role: "assistant",
+          stopReason: "stop",
+          usage: { input: 9000, cacheRead: 0, cacheWrite: 0, output: 300 },
+        },
+      },
+      { type: "message", message: { role: "user", content: "second prompt" } },
+      {
+        type: "message",
+        message: {
+          role: "assistant",
+          stopReason: "toolUse",
+          usage: { input: 200, cacheRead: 8800, cacheWrite: 100, output: 120 },
+        },
+      },
+      {
+        type: "message",
+        message: {
+          role: "assistant",
+          stopReason: "stop",
+          usage: { input: 300, cacheRead: 8900, cacheWrite: 0, output: 300 },
+        },
+      },
+    ];
+
+    expect(turnTokenUsageFromBranch(branch)).toEqual({
+      inputTokens: 9200,
+      cacheReadTokens: 8900,
+      outputTokens: 420,
+      isFirstTurn: false,
+    });
+  });
+
+  it("marks the first prompt turn or first turn after a model change as isFirstTurn", () => {
+    const firstTurnBranch = [
+      { type: "message", message: { role: "user", content: "hello" } },
+      {
+        type: "message",
+        message: {
+          role: "assistant",
+          stopReason: "stop",
+          usage: { input: 16000, cacheRead: 0, cacheWrite: 0, output: 171 },
+        },
+      },
+    ];
+    expect(turnTokenUsageFromBranch(firstTurnBranch)).toEqual({
+      inputTokens: 16000,
+      cacheReadTokens: 0,
+      outputTokens: 171,
+      isFirstTurn: true,
+    });
+
+    const afterModelSwitchBranch = [
+      ...firstTurnBranch,
+      { type: "model_change", provider: "google", modelId: "gemini-3.0-flash" },
+      { type: "message", message: { role: "user", content: "next" } },
+      {
+        type: "message",
+        message: {
+          role: "assistant",
+          stopReason: "stop",
+          usage: { input: 17000, cacheRead: 0, cacheWrite: 0, output: 200 },
+        },
+      },
+    ];
+    expect(turnTokenUsageFromBranch(afterModelSwitchBranch)).toEqual({
+      inputTokens: 17000,
+      cacheReadTokens: 0,
+      outputTokens: 200,
+      isFirstTurn: true,
+    });
+  });
+
+  it("includes an unpersisted latest assistant message from message_end without double-counting", () => {
+    const persistedMsg = {
+      role: "assistant",
+      stopReason: "toolUse",
+      usage: { input: 100, cacheRead: 8000, cacheWrite: 0, output: 100 },
+    };
+    const unpersistedMsg = {
+      role: "assistant",
+      stopReason: "stop",
+      usage: { input: 200, cacheRead: 8900, cacheWrite: 0, output: 320 },
+    };
+    const branch = [
+      { type: "message", message: { role: "user", content: "prompt" } },
+      { type: "message", message: persistedMsg },
+    ];
+
+    expect(turnTokenUsageFromBranch(branch, unpersistedMsg)).toEqual({
+      inputTokens: 9100,
+      cacheReadTokens: 8900,
+      outputTokens: 420,
+      isFirstTurn: true,
+    });
+
+    // When already persisted in branch, does not double-count
+    expect(
+      turnTokenUsageFromBranch(
+        [...branch, { type: "message", message: unpersistedMsg }],
+        unpersistedMsg
+      )
+    ).toEqual({
+      inputTokens: 9100,
+      cacheReadTokens: 8900,
+      outputTokens: 420,
+      isFirstTurn: true,
+    });
   });
 });
 

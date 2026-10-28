@@ -153,11 +153,11 @@ describe.skipIf(!sdkRoot)("public SDK footer integration", () => {
     try {
       expect(f.session.messages.filter((message: any) => message.role === "assistant")).toHaveLength(2);
       expect(f.line()).toContain("claude-b xhigh");
-      expect(f.line()).toContain("256k used");
+      expect(f.line()).toContain("(12k / 256k)");
       expect(f.line()).toContain("$0.75");
       await f.session.navigateTree(a, { summarize: false });
       expect(f.line()).toContain("gpt-a high");
-      expect(f.line()).toContain("128k used");
+      expect(f.line()).toContain("(12k / 128k)");
       expect(f.line()).not.toContain("claude-b");
       await f.session.navigateTree(b, { summarize: false });
       expect(f.line()).toContain("claude-b xhigh");

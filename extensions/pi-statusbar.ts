@@ -14,15 +14,16 @@ import {
 import { getGitBranch } from "../src/git.js";
 import {
   formatCost,
-  formatTokens,
+  formatContextUsage,
+  formatTurnIo,
   formatCwd,
   formatModelName,
   getModelIcon,
-  contextAnsiColor,
   costAnsiColor,
 } from "../src/formatters.js";
 import {
   sessionCostFromBranch,
+  turnTokenUsageFromBranch,
   TokenRateTracker,
   ttftAnsiColor,
   tpsAnsiColor,
@@ -265,6 +266,7 @@ export default function initStatusBar(pi: ExtensionAPI): void {
   let cachedMcpSummary = "";
   let lastResponse: ResponseObservation | undefined;
   let lastResponseTier: AutoModelTier | undefined;
+  let liveStreamMessage: unknown = undefined;
   let mcpSummaryText = "";
   let visibleSegments: SegmentName[] = readGlobalSegments();
   let nerdFontsEnabled = readGlobalNerdFonts();
@@ -292,6 +294,7 @@ export default function initStatusBar(pi: ExtensionAPI): void {
   const rebuildObservation = (ctx: ExtensionContext) => {
     lastResponse = undefined;
     lastResponseTier = undefined;
+    liveStreamMessage = undefined;
     let pendingTier: AutoModelTier | undefined;
     for (const entry of ctx.sessionManager.getBranch()) {
       const foundTier = extractAutoModelTier(entry);
@@ -558,9 +561,11 @@ export default function initStatusBar(pi: ExtensionAPI): void {
   });
   pi.on("thinking_level_select", async () => refresh(true));
   pi.on("turn_start", async () => {
+    liveStreamMessage = undefined;
     if (visibleSegments.includes("tokens")) tracker.start(performance.now());
   });
   pi.on("turn_end", async () => {
+    liveStreamMessage = undefined;
     tracker.cancel();
     refresh(true);
   });
@@ -571,11 +576,21 @@ export default function initStatusBar(pi: ExtensionAPI): void {
     if (visibleSegments.includes("tokens")) tracker.resumeAfterTool();
   });
   pi.on("message_update", async (event) => {
+    const streamEvent = event.assistantMessageEvent;
+    if (streamEvent && typeof streamEvent === "object") {
+      liveStreamMessage =
+        "partial" in streamEvent
+          ? streamEvent.partial
+          : "message" in streamEvent
+            ? streamEvent.message
+            : undefined;
+    }
     if (visibleSegments.includes("tokens"))
       tracker.record(event.assistantMessageEvent);
     refresh();
   });
   pi.on("message_end", async (event, ctx) => {
+    liveStreamMessage = undefined;
     // The SDK emits message_end before appending the finalized message to history.
     if (isSuccessfulResponse(event.message)) {
       lastResponse = event.message;
@@ -657,20 +672,14 @@ export default function initStatusBar(pi: ExtensionAPI): void {
               const modelName = formatModelName(pair.model?.id);
               const effortLevel = pair.effort;
               const usage = ctx.getContextUsage();
+              const contextSegmentText = formatContextUsage(usage);
 
-              let contextSegmentText: string;
-              if (usage && usage.percent !== null) {
-                const pct = `${usage.percent.toFixed(1)}%`;
-                const window = formatTokens(usage.contextWindow);
-                const color = contextAnsiColor(usage.percent);
-                const text = `${pct} of ${window} used`;
-                contextSegmentText = color ? `${color}${text}\x1b[0m` : text;
-              } else if (usage) {
-                const window = formatTokens(usage.contextWindow);
-                contextSegmentText = `— of ${window} used`;
-              } else {
-                contextSegmentText = "—";
-              }
+              const branchEntries = ctx.sessionManager.getBranch();
+              const turnUsage = turnTokenUsageFromBranch(
+                branchEntries,
+                liveStreamMessage ?? lastResponse
+              );
+              const ioPart = formatTurnIo(turnUsage);
 
               const displayRate = tracker.liveTps();
               const RATE_DISPLAY_CAP = 9999;
@@ -701,13 +710,13 @@ export default function initStatusBar(pi: ExtensionAPI): void {
                   : "— TPS";
 
               const tokenSegmentText =
-                `${ttftPart}` +
+                `${ioPart}` +
+                ` \x1b[38;2;140;140;140m·\x1b[0m` +
+                ` ${ttftPart}` +
                 ` \x1b[38;2;140;140;140m·\x1b[0m` +
                 ` ${tpsPart}`;
 
-              const sessionCost = sessionCostFromBranch(
-                ctx.sessionManager.getBranch()
-              );
+              const sessionCost = sessionCostFromBranch(branchEntries);
               const costGradientCeiling = 1.0;
               const costSegmentText = `${costAnsiColor(sessionCost, costGradientCeiling)}${formatCost(sessionCost)}\x1b[0m`;
 

@@ -159,6 +159,45 @@ describe("pi-statusbar footer extension", () => {
     expect(footer.render(200)[0]).toContain(`${color}${percent.toFixed(1)}% of 1.0M used\x1b[0m`);
   });
 
+  it("renders context token count alongside percentage and turn I/O with cache hit rate", async () => {
+    mockContext.getContextUsage.mockReturnValue({
+      tokens: 9100,
+      percent: 4.5,
+      contextWindow: 200000,
+    });
+    mockContext.sessionManager.getBranch.mockReturnValue([
+      { type: "message", message: { role: "user", content: "hello" } },
+      {
+        type: "message",
+        message: {
+          role: "assistant",
+          stopReason: "stop",
+          usage: {
+            input: 1000,
+            cacheRead: 8100,
+            cacheWrite: 0,
+            output: 420,
+            cost: { total: 0.04 },
+          },
+        },
+      },
+    ]);
+
+    initStatusBar(mockApi);
+    for (const h of handlers["session_start"] || []) {
+      await h({ type: "session_start" }, mockContext);
+    }
+
+    const footer = installedFooterFactory({ requestRender: vi.fn() }, mockTheme);
+    const line = footer.render(200)[0];
+    const cleanLine = stripAnsi(line);
+
+    expect(cleanLine).toContain("4.5% (9.1k / 200k)");
+    expect(cleanLine).toContain("↑9.1k (89% cached) ↓420");
+    expect(line).toContain("\x1b[38;2;80;220;80m4.5% (9.1k / 200k)\x1b[0m");
+    expect(line).toContain("\x1b[38;2;80;220;80m↑9.1k\x1b[0m \x1b[38;2;80;220;80m(89% cached)\x1b[0m \x1b[38;2;80;220;80m↓420\x1b[0m");
+  });
+
   it("renders uncoloured placeholders before telemetry exists and while waiting for output", async () => {
     initStatusBar(mockApi);
     for (const h of handlers["session_start"] || []) {

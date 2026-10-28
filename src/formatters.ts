@@ -85,6 +85,82 @@ export function costAnsiColor(cost: number, _ceiling = 0): string {
   return "\x1b[38;2;80;220;80m"; // green (<= $1)
 }
 
+export function uncachedInputAnsiColor(tokens: number): string {
+  if (tokens >= 100_000) return "\x1b[38;2;255;80;80m"; // red
+  if (tokens >= 50_000) return "\x1b[38;2;255;165;0m"; // orange
+  if (tokens >= 20_000) return "\x1b[38;2;255;215;0m"; // yellow
+  return "\x1b[38;2;80;220;80m"; // green
+}
+
+export function cacheHitAnsiColor(percent: number): string {
+  if (percent >= 75) return "\x1b[38;2;80;220;80m"; // green
+  if (percent >= 50) return "\x1b[38;2;255;215;0m"; // yellow
+  if (percent >= 20) return "\x1b[38;2;255;165;0m"; // orange
+  return "\x1b[38;2;255;80;80m"; // red
+}
+
+export function outputTokensAnsiColor(tokens: number): string {
+  if (tokens >= 20_000) return "\x1b[38;2;255;80;80m"; // red
+  if (tokens >= 10_000) return "\x1b[38;2;255;165;0m"; // orange
+  if (tokens >= 4_000) return "\x1b[38;2;255;215;0m"; // yellow
+  return "\x1b[38;2;80;220;80m"; // green
+}
+
+export function formatContextUsage(
+  usage:
+    | {
+        tokens?: number | null;
+        contextWindow: number;
+        percent: number | null;
+      }
+    | undefined
+): string {
+  if (!usage) return "—";
+  const window = formatTokens(usage.contextWindow);
+  if (usage.percent === null) {
+    return `— of ${window} used`;
+  }
+  const pct = `${usage.percent.toFixed(1)}%`;
+  const color = contextAnsiColor(usage.percent);
+  const text =
+    typeof usage.tokens === "number" && Number.isFinite(usage.tokens)
+      ? `${pct} (${formatTokens(usage.tokens)} / ${window})`
+      : `${pct} of ${window} used`;
+  return color ? `${color}${text}\x1b[0m` : text;
+}
+
+export function formatTurnIo(
+  usage: {
+    inputTokens: number;
+    cacheReadTokens: number;
+    outputTokens: number;
+    isFirstTurn?: boolean;
+  } | null
+): string {
+  if (!usage || (usage.inputTokens <= 0 && usage.outputTokens <= 0)) {
+    return "↑— ↓—";
+  }
+
+  let inPart = "↑—";
+  if (usage.inputTokens > 0) {
+    const cacheRead = Math.max(0, usage.cacheReadTokens);
+    const uncachedInput = Math.max(0, usage.inputTokens - cacheRead);
+    const cachePct = Math.round((cacheRead / usage.inputTokens) * 100);
+    const inputText = `${uncachedInputAnsiColor(uncachedInput)}↑${formatTokens(usage.inputTokens)}\x1b[0m`;
+    const cacheLabel = `(${cachePct}% cached)`;
+    const cacheText =
+      usage.isFirstTurn && cachePct === 0
+        ? cacheLabel
+        : `${cacheHitAnsiColor(cachePct)}${cacheLabel}\x1b[0m`;
+    inPart = `${inputText} ${cacheText}`;
+  }
+
+  const outText = `↓${formatTokens(Math.max(0, usage.outputTokens))}`;
+  const outPart = `${outputTokensAnsiColor(usage.outputTokens)}${outText}\x1b[0m`;
+
+  return `${inPart} ${outPart}`;
+}
+
 export function stripAnsi(s: string): string {
   // eslint-disable-next-line no-control-regex
   return s.replace(/\x1b\[[0-9;]*m/g, "");

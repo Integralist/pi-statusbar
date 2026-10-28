@@ -8,6 +8,11 @@ import {
   getModelIcon,
   contextAnsiColor,
   costAnsiColor,
+  uncachedInputAnsiColor,
+  cacheHitAnsiColor,
+  outputTokensAnsiColor,
+  formatContextUsage,
+  formatTurnIo,
   stripAnsi,
 } from "../src/formatters.js";
 
@@ -223,6 +228,134 @@ describe("costAnsiColor", () => {
     [100, "\x1b[38;2;255;80;80m"],
   ])("returns the expected color for cost %s USD", (cost, color) => {
     expect(costAnsiColor(cost)).toBe(color);
+  });
+});
+
+describe("uncachedInputAnsiColor", () => {
+  it.each([
+    [0, "\x1b[38;2;80;220;80m"],
+    [19999, "\x1b[38;2;80;220;80m"],
+    [20000, "\x1b[38;2;255;215;0m"],
+    [49999, "\x1b[38;2;255;215;0m"],
+    [50000, "\x1b[38;2;255;165;0m"],
+    [99999, "\x1b[38;2;255;165;0m"],
+    [100000, "\x1b[38;2;255;80;80m"],
+    [250000, "\x1b[38;2;255;80;80m"],
+  ])("returns the expected color for %s uncached input tokens", (tokens, color) => {
+    expect(uncachedInputAnsiColor(tokens)).toBe(color);
+  });
+});
+
+describe("cacheHitAnsiColor", () => {
+  it.each([
+    [0, "\x1b[38;2;255;80;80m"],
+    [19.9, "\x1b[38;2;255;80;80m"],
+    [20, "\x1b[38;2;255;165;0m"],
+    [49.9, "\x1b[38;2;255;165;0m"],
+    [50, "\x1b[38;2;255;215;0m"],
+    [74.9, "\x1b[38;2;255;215;0m"],
+    [75, "\x1b[38;2;80;220;80m"],
+    [100, "\x1b[38;2;80;220;80m"],
+  ])("returns the expected color for %s percent cache hit", (percent, color) => {
+    expect(cacheHitAnsiColor(percent)).toBe(color);
+  });
+});
+
+describe("outputTokensAnsiColor", () => {
+  it.each([
+    [0, "\x1b[38;2;80;220;80m"],
+    [3999, "\x1b[38;2;80;220;80m"],
+    [4000, "\x1b[38;2;255;215;0m"],
+    [9999, "\x1b[38;2;255;215;0m"],
+    [10000, "\x1b[38;2;255;165;0m"],
+    [19999, "\x1b[38;2;255;165;0m"],
+    [20000, "\x1b[38;2;255;80;80m"],
+    [50000, "\x1b[38;2;255;80;80m"],
+  ])("returns the expected color for %s output tokens", (tokens, color) => {
+    expect(outputTokensAnsiColor(tokens)).toBe(color);
+  });
+});
+
+describe("formatContextUsage", () => {
+  it("formats percent with tokens and context window when tokens are known", () => {
+    const formatted = formatContextUsage({
+      tokens: 9100,
+      contextWindow: 200000,
+      percent: 4.55,
+    });
+    expect(stripAnsi(formatted)).toBe("4.5% (9.1k / 200k)");
+    expect(formatted).toBe("\x1b[38;2;80;220;80m4.5% (9.1k / 200k)\x1b[0m");
+  });
+
+  it("falls back to percent of window used when tokens is null or omitted", () => {
+    expect(
+      stripAnsi(formatContextUsage({ tokens: null, contextWindow: 200000, percent: 25 }))
+    ).toBe("25.0% of 200k used");
+    expect(
+      stripAnsi(formatContextUsage({ contextWindow: 1048576, percent: 2.3 }))
+    ).toBe("2.3% of 1.0M used");
+  });
+
+  it("renders placeholders when percent or usage is missing", () => {
+    expect(
+      formatContextUsage({ tokens: null, contextWindow: 200000, percent: null })
+    ).toBe("— of 200k used");
+    expect(formatContextUsage(undefined)).toBe("—");
+  });
+});
+
+describe("formatTurnIo", () => {
+  it("renders uncolored placeholders when usage is null or zero", () => {
+    expect(formatTurnIo(null)).toBe("↑— ↓—");
+    expect(
+      formatTurnIo({ inputTokens: 0, cacheReadTokens: 0, outputTokens: 0 })
+    ).toBe("↑— ↓—");
+  });
+
+  it("formats input, cache hit percentage, and output with separate threshold colors", () => {
+    const formatted = formatTurnIo({
+      inputTokens: 17000,
+      cacheReadTokens: 11730,
+      outputTokens: 564,
+      isFirstTurn: false,
+    });
+    expect(stripAnsi(formatted)).toBe("↑17k (69% cached) ↓564");
+    expect(formatted).toBe(
+      "\x1b[38;2;80;220;80m↑17k\x1b[0m \x1b[38;2;255;215;0m(69% cached)\x1b[0m \x1b[38;2;80;220;80m↓564\x1b[0m"
+    );
+  });
+
+  it("renders (0% cached) uncolored on the first turn when cache is cold", () => {
+    const coldFirstTurn = formatTurnIo({
+      inputTokens: 16000,
+      cacheReadTokens: 0,
+      outputTokens: 171,
+      isFirstTurn: true,
+    });
+    expect(stripAnsi(coldFirstTurn)).toBe("↑16k (0% cached) ↓171");
+    expect(coldFirstTurn).toBe(
+      "\x1b[38;2;80;220;80m↑16k\x1b[0m (0% cached) \x1b[38;2;80;220;80m↓171\x1b[0m"
+    );
+
+    const warmTurnMiss = formatTurnIo({
+      inputTokens: 16000,
+      cacheReadTokens: 0,
+      outputTokens: 171,
+      isFirstTurn: false,
+    });
+    expect(warmTurnMiss).toBe(
+      "\x1b[38;2;80;220;80m↑16k\x1b[0m \x1b[38;2;255;80;80m(0% cached)\x1b[0m \x1b[38;2;80;220;80m↓171\x1b[0m"
+    );
+  });
+
+  it("handles output-only usage when input tokens are 0", () => {
+    const formatted = formatTurnIo({
+      inputTokens: 0,
+      cacheReadTokens: 0,
+      outputTokens: 4500,
+    });
+    expect(stripAnsi(formatted)).toBe("↑— ↓4.5k");
+    expect(formatted).toBe("↑— \x1b[38;2;255;215;0m↓4.5k\x1b[0m");
   });
 });
 

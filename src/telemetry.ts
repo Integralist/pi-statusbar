@@ -3,6 +3,120 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 export type McpCounts = { servers: number; tools: number };
 
+export type TurnTokenUsage = {
+  inputTokens: number;
+  cacheReadTokens: number;
+  outputTokens: number;
+  isFirstTurn?: boolean;
+};
+
+function extractAssistantTokenCounts(message: unknown): {
+  inputTokens: number;
+  cacheReadTokens: number;
+  outputTokens: number;
+  hasTokens: boolean;
+} | null {
+  if (!message || typeof message !== "object") return null;
+  const rec = message as Record<string, unknown>;
+  if (rec.role !== "assistant") return null;
+  if (rec.stopReason === "error" || rec.stopReason === "aborted") return null;
+  const usage = rec.usage as
+    | {
+        input?: unknown;
+        output?: unknown;
+        cacheRead?: unknown;
+        cacheWrite?: unknown;
+      }
+    | undefined;
+  if (!usage || typeof usage !== "object") return null;
+
+  const num = (v: unknown): number =>
+    typeof v === "number" && Number.isFinite(v) && v > 0 ? v : 0;
+
+  const input = num(usage.input);
+  const cacheRead = num(usage.cacheRead);
+  const cacheWrite = num(usage.cacheWrite);
+  const output = num(usage.output);
+  const inputTokens = input + cacheRead + cacheWrite;
+
+  if (inputTokens <= 0 && output <= 0) return null;
+  return {
+    inputTokens,
+    cacheReadTokens: cacheRead,
+    outputTokens: output,
+    hasTokens: true,
+  };
+}
+
+export function turnTokenUsageFromBranch(
+  branch: readonly unknown[],
+  latestMessage?: unknown
+): TurnTokenUsage | null {
+  let lastInputTokens = 0;
+  let lastCacheReadTokens = 0;
+  let turnOutputTokens = 0;
+  let hasData = false;
+  let completedTurnsForModel = 0;
+  let lastBranchMessage: unknown = undefined;
+
+  for (const entry of branch) {
+    if (!entry || typeof entry !== "object") continue;
+    const rec = entry as Record<string, unknown>;
+    if (rec.type === "model_change") {
+      completedTurnsForModel = 0;
+      lastInputTokens = 0;
+      lastCacheReadTokens = 0;
+      turnOutputTokens = 0;
+      hasData = false;
+      continue;
+    }
+    if (rec.type !== "message" || !rec.message || typeof rec.message !== "object")
+      continue;
+    const msg = rec.message as Record<string, unknown>;
+    if (msg.role === "user") {
+      if (hasData) {
+        completedTurnsForModel += 1;
+      }
+      lastInputTokens = 0;
+      lastCacheReadTokens = 0;
+      turnOutputTokens = 0;
+      hasData = false;
+      lastBranchMessage = msg;
+      continue;
+    }
+    const counts = extractAssistantTokenCounts(msg);
+    if (counts) {
+      if (counts.inputTokens > 0) {
+        lastInputTokens = counts.inputTokens;
+        lastCacheReadTokens = counts.cacheReadTokens;
+      }
+      turnOutputTokens += counts.outputTokens;
+      hasData = true;
+      lastBranchMessage = msg;
+    }
+  }
+
+  if (latestMessage && latestMessage !== lastBranchMessage) {
+    const counts = extractAssistantTokenCounts(latestMessage);
+    if (counts) {
+      if (counts.inputTokens > 0) {
+        lastInputTokens = counts.inputTokens;
+        lastCacheReadTokens = counts.cacheReadTokens;
+      }
+      turnOutputTokens += counts.outputTokens;
+      hasData = true;
+    }
+  }
+
+  if (!hasData) return null;
+  return {
+    inputTokens: lastInputTokens,
+    cacheReadTokens: lastCacheReadTokens,
+    outputTokens: turnOutputTokens,
+    isFirstTurn: completedTurnsForModel === 0,
+  };
+}
+
 export function sessionCostFromBranch(branch: readonly unknown[]): number {
   let total = 0;
   for (const entry of branch) {
